@@ -7,7 +7,7 @@
 services:
 
   postgres:
-    image: postgres:17-alpine
+    image: public.ecr.aws/docker/library/postgres:17-alpine   # official image via the ECR Public mirror
     environment:
       POSTGRES_DB: firstproject
       POSTGRES_USER: ${DB_USERNAME:-postgres}

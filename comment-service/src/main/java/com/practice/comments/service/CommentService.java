@@ -24,7 +24,7 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final PostLookup postLookup;
     private final CommentRules rules;
-    // Business metrics: show up at /actuator/prometheus as comments_created_total, comments_rejected_total{reason=...}
+    // Business metrics: show up at /actuator/prometheus as comments_saved_total, comments_rejected_total{reason=...}
     private final Counter created;
     private final Counter rejectedBannedWord;
 
@@ -33,7 +33,8 @@ public class CommentService {
         this.commentRepository = commentRepository;
         this.postLookup = postLookup;
         this.rules = rules;
-        this.created = Counter.builder("comments.created")
+        // not "comments.created": Prometheus treats a "_created" suffix on counters as reserved and strips it
+        this.created = Counter.builder("comments.saved")
                 .description("Comments successfully saved")
                 .register(meterRegistry);
         this.rejectedBannedWord = Counter.builder("comments.rejected")

@@ -1,5 +1,6 @@
 # ---------- Stage 1: build the jar with a full JDK + Maven wrapper ----------
-FROM eclipse-temurin:25-jdk AS build
+# Official Docker images, pulled via the AWS ECR Public mirror (Docker Hub auth was timing out in CI)
+FROM public.ecr.aws/docker/library/eclipse-temurin:25-jdk AS build
 WORKDIR /workspace
 
 # Copy only the build files first: this layer (all dependencies) is cached
@@ -16,7 +17,7 @@ RUN ./mvnw -B -q package -DskipTests
 RUN java -Djarmode=tools -jar target/first-project-0.0.1-SNAPSHOT.jar extract --layers --launcher --destination extracted
 
 # ---------- Stage 2: small runtime image, JRE only, no Maven, no source ----------
-FROM eclipse-temurin:25-jre
+FROM public.ecr.aws/docker/library/eclipse-temurin:25-jre
 WORKDIR /app
 
 # Never run as root inside the container
