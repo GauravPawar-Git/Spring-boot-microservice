@@ -1,0 +1,46 @@
+# Run the whole stack:   docker compose up --build
+# Stop it:               docker compose down        (data survives in the pgdata volume)
+# Stop + wipe data:      docker compose down -v
+#
+# Secrets come from a .env file next to this one (copy .env.example to .env). Never commit .env.
+
+services:
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: firstproject
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      # ":?" = refuse to start with this message if the variable is missing
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data   # named volume: data outlives the container
+    ports:
+      - "5432:5432"                        # only so you can connect with a DB tool from Windows
+    healthcheck:
+      # $$ = a literal $ for the shell inside the container
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    image: first-project:latest
+    depends_on:
+      postgres:
+        condition: service_healthy         # wait until PostgreSQL accepts connections, not just "started"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # "postgres" is the service name above: Compose's network has DNS for service names
+      DB_URL: jdbc:postgresql://postgres:5432/firstproject
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+    ports:
+      - "8080:8080"                        # host:container
+    restart: unless-stopped
+
+volumes:
+  pgdata:

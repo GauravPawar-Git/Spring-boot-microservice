@@ -1,0 +1,11 @@
+# Everything listed here is NOT sent to the Docker daemon as build context:
+# smaller, faster builds, and no local secrets or stale build output inside the image.
+target/
+.git/
+.idea/
+*.iml
+.vscode/
+.env
+HELP.md
+Dockerfile
+docker-compose.yml
