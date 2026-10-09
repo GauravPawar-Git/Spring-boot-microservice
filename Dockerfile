@@ -26,9 +26,9 @@ RUN java -Djarmode=tools -jar ${SERVICE}/target/*.jar extract --layers --launche
 FROM public.ecr.aws/docker/library/eclipse-temurin:25-jre
 WORKDIR /app
 
-# Never run as root inside the container
-RUN groupadd --system spring && useradd --system --gid spring --no-create-home spring
-USER spring
+# Never run as root inside the container. A NUMERIC uid lets Kubernetes verify runAsNonRoot (Phase 8)
+RUN groupadd --system --gid 10001 spring && useradd --system --uid 10001 --gid spring --no-create-home spring
+USER 10001
 
 # One COPY per layer, least-changing first, so a code change rebuilds only the last small layer
 COPY --from=build /workspace/extracted/dependencies/ ./

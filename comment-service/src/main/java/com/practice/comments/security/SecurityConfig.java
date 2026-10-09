@@ -32,7 +32,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/comments/**").permitAll()
-                        .requestMatchers("/actuator/health", "/h2-console/**", "/error").permitAll()
+                        // "/**" also allows the Kubernetes probe groups /actuator/health/liveness and /readiness (Phase 8)
+                        .requestMatchers("/actuator/health", "/actuator/health/**", "/h2-console/**", "/error").permitAll()
                         // metrics are scraped by Prometheus; in production keep this port internal-only
                         .requestMatchers("/actuator/prometheus").permitAll()
                         // reloading configuration changes behaviour: admins only

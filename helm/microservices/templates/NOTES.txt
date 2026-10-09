@@ -1,0 +1,12 @@
+Installed release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Watch everything become ready:
+  kubectl get pods -w
+
+Reach the gateway from your machine:
+  kubectl port-forward svc/api-gateway 8765:8765
+  curl localhost:8765/jpa/posts
+
+Eureka dashboard and Zipkin:
+  kubectl port-forward svc/discovery-server 8761:8761
+  kubectl port-forward svc/zipkin 9411:9411

@@ -1,0 +1,104 @@
+# Default settings. Override at install time, e.g.:
+#   helm install ms helm/microservices --set secrets.dbPassword=... --set secrets.jwtSecret=...
+#   helm upgrade ms helm/microservices --set services.comment-service.replicas=3
+
+# Images of the five Spring services: <imageRepository>/<folder>:<imageTag> (built from the repo's Dockerfile)
+imageRepository: ms
+imageTag: latest
+imagePullPolicy: IfNotPresent           # images are loaded into the cluster beforehand (kind load)
+
+# Rendered into a Secret; never commit real values. Required: install fails if they are missing.
+secrets:
+  dbUsername: postgres
+  dbPassword: ""
+  jwtSecret: ""
+
+# Files served by config-server, passed in from the repo's config-repo/ folder with --set-file:
+#   --set-file configRepo.application=config-repo/application.properties
+#   --set-file configRepo.commentService=config-repo/comment-service.properties
+configRepo:
+  application: ""
+  commentService: ""
+
+# Same values for every Spring service unless overridden below
+springDefaults:
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 384Mi }
+    limits: { memory: 768Mi }           # no CPU limit on purpose: JVM startup is CPU-heavy, throttling slows it badly
+
+# One entry per Spring service; templates/spring-services.yaml turns each into a Deployment + Service
+services:
+  config-server:
+    folder: config-server
+    port: 8888
+    probes: actuator
+    mountConfigRepo: true
+    resources:
+      requests: { cpu: 50m, memory: 256Mi }
+      limits: { memory: 512Mi }
+    env:
+      CONFIG_REPO: file:/config-repo/
+
+  discovery-server:
+    folder: discovery-server
+    port: 8761
+    probes: tcp                          # no actuator in the Eureka server: check the port is open
+    resources:
+      requests: { cpu: 50m, memory: 256Mi }
+      limits: { memory: 512Mi }
+
+  user-service:
+    folder: user-service                 # image name suffix; built from the repo root
+    port: 8080
+    probes: actuator
+    waitForDatabase: users-db
+    secretEnv: [DB_USERNAME, DB_PASSWORD, JWT_SECRET]
+    env:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://users-db:5432/users
+      EVENTS_ENABLED: "true"
+      KAFKA_SERVERS: kafka:9092
+
+  comment-service:
+    folder: comment-service
+    port: 8082
+    probes: actuator
+    waitForDatabase: comments-db
+    secretEnv: [DB_USERNAME, DB_PASSWORD, JWT_SECRET]
+    env:
+      DB_URL: jdbc:postgresql://comments-db:5432/comments
+      EVENTS_ENABLED: "true"
+      KAFKA_SERVERS: kafka:9092
+    autoscaling:                         # HorizontalPodAutoscaler (needs metrics-server in the cluster)
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 3
+      targetCPUUtilizationPercentage: 70
+
+  api-gateway:
+    folder: api-gateway
+    port: 8765
+    probes: actuator
+    secretEnv: [JWT_SECRET]
+    serviceType: ClusterIP               # NodePort / LoadBalancer to expose it outside the cluster
+
+# Environment variables every Spring service gets: in-cluster DNS names of the shared pieces
+commonEnv:
+  CONFIG_SERVER_URL: http://config-server:8888
+  EUREKA_URL: http://discovery-server:8761/eureka
+  ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+
+# Database per service: one PostgreSQL StatefulSet each
+databases:
+  users-db: { database: users }
+  comments-db: { database: comments }
+postgres:
+  image: public.ecr.aws/docker/library/postgres:17-alpine
+  storage: 1Gi
+
+kafka:
+  image: apache/kafka:4.3.1
+
+zipkin:
+  image: ghcr.io/openzipkin/zipkin:3.6.1

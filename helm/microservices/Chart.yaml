@@ -1,0 +1,7 @@
+apiVersion: v2
+name: microservices
+description: user-service, comment-service, api-gateway, Eureka and Config Server with PostgreSQL, Kafka and Zipkin
+type: application
+# version = the chart's own version; appVersion = the version of the application it deploys
+version: 0.1.0
+appVersion: "0.0.1-SNAPSHOT"

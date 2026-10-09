@@ -1,0 +1,72 @@
+{{/*
+One PostgreSQL per business service (database per service). StatefulSet, not Deployment:
+stable pod name (users-db-0) and a PersistentVolumeClaim that stays with that pod across restarts.
+In production you would usually use a managed database (RDS, Cloud SQL) or an operator instead.
+*/}}
+{{- range $name, $db := .Values.databases }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "ms.labels" $ | nindent 4 }}
+spec:
+  selector:
+    {{- include "ms.selector" $name | nindent 4 }}
+  ports:
+    - name: postgres
+      port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "ms.labels" $ | nindent 4 }}
+spec:
+  serviceName: {{ $name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "ms.selector" $name | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ms.selector" $name | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: {{ $.Values.postgres.image }}
+          imagePullPolicy: {{ $.Values.imagePullPolicy }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: {{ $db.database }}
+            - name: POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: microservices-secrets, key: DB_USERNAME } }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: microservices-secrets, key: DB_PASSWORD } }
+            - name: PGDATA                 # a subfolder: some volume types have a lost+found folder at the root
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ $.Values.postgres.storage }}
+{{- end }}

@@ -1,0 +1,13 @@
+# The files config-server serves, mounted into its pod at /config-repo.
+# Changing them: helm upgrade with new --set-file values, then POST /actuator/refresh on the client.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-repo
+  labels:
+    {{- include "ms.labels" . | nindent 4 }}
+data:
+  application.properties: |
+    {{- .Values.configRepo.application | nindent 4 }}
+  comment-service.properties: |
+    {{- .Values.configRepo.commentService | nindent 4 }}

@@ -1,0 +1,131 @@
+{{/*
+One Deployment + one Service per entry in .Values.services. Adding a sixth service = a few lines in values.yaml.
+*/}}
+{{- range $name, $svc := .Values.services }}
+{{- $resources := $svc.resources | default $.Values.springDefaults.resources }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "ms.labels" $ | nindent 4 }}
+    {{- include "ms.selector" $name | nindent 4 }}
+spec:
+  {{- if not (and $svc.autoscaling $svc.autoscaling.enabled) }}
+  replicas: {{ $svc.replicas | default $.Values.springDefaults.replicas }}   # left out when an HPA manages the service
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ms.selector" $name | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0                  # never go below the desired count during an update
+      maxSurge: 1                        # start one new pod, wait until it is READY, then stop an old one
+  template:
+    metadata:
+      labels:
+        {{- include "ms.selector" $name | nindent 8 }}
+      {{- if $svc.mountConfigRepo }}
+      annotations:
+        # only config-server: a changed ConfigMap rolls it at once (mounted files would otherwise update
+        # only after the kubelet's sync delay). Clients are NOT restarted: they use POST /actuator/refresh.
+        checksum/config-repo: {{ $.Values.configRepo | toJson | sha256sum }}
+      {{- end }}
+    spec:
+      terminationGracePeriodSeconds: 30
+      {{- if $svc.waitForDatabase }}
+      initContainers:
+        # Kubernetes has no depends_on: wait here until this service's own database accepts connections
+        - name: wait-for-database
+          image: {{ $.Values.postgres.image }}
+          imagePullPolicy: {{ $.Values.imagePullPolicy }}
+          command: ["sh", "-c", "until pg_isready -h {{ $svc.waitForDatabase }} -p 5432; do echo waiting for {{ $svc.waitForDatabase }}; sleep 2; done"]
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+          image: "{{ $.Values.imageRepository }}/{{ $svc.folder }}:{{ $.Values.imageTag }}"
+          imagePullPolicy: {{ $.Values.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $svc.port }}
+          env:
+            {{- range $key, $value := $.Values.commonEnv }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- range $key, $value := $svc.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- range $svc.secretEnv }}
+            - name: {{ . }}
+              valueFrom:
+                secretKeyRef:
+                  name: microservices-secrets
+                  key: {{ . }}
+            {{- end }}
+          resources:
+            {{- toYaml $resources | nindent 12 }}
+          {{- if eq $svc.probes "actuator" }}
+          # Spring Boot detects Kubernetes and exposes /actuator/health/liveness and /readiness
+          startupProbe:                  # allows up to 5 min for a slow JVM start before liveness kicks in
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:                 # failing = the process is broken: Kubernetes restarts the container
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:                # failing = temporarily not able to serve: removed from the Service, not restarted
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 5
+            failureThreshold: 3
+          {{- else }}
+          startupProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 5
+          {{- end }}
+          lifecycle:
+            preStop:
+              # give Services/Endpoints a moment to stop sending traffic before Spring shuts down gracefully
+              exec: { command: ["sleep", "5"] }
+          {{- if $svc.mountConfigRepo }}
+          volumeMounts:
+            - name: config-repo
+              mountPath: /config-repo
+              readOnly: true
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+      {{- if $svc.mountConfigRepo }}
+      volumes:
+        - name: config-repo
+          configMap:
+            name: config-repo
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}                      # the DNS name other pods use: http://{{ $name }}:{{ $svc.port }}
+  labels:
+    {{- include "ms.labels" $ | nindent 4 }}
+spec:
+  type: {{ $svc.serviceType | default "ClusterIP" }}
+  selector:
+    {{- include "ms.selector" $name | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $svc.port }}
+      targetPort: http
+{{- end }}

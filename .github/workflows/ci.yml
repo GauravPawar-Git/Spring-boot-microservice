@@ -2,6 +2,7 @@
 # 1. build-and-test: each Maven project is built and tested in parallel (a matrix).
 #    Docker is available here, so Testcontainers tests (real PostgreSQL + Kafka) run too.
 # 2. e2e: builds all five images, starts the 9-container stack with docker compose and runs scripts/e2e.sh
+# 3. kubernetes: installs the Helm chart on a throwaway kind cluster and runs the same scripts/e2e.sh
 name: CI
 
 on:
@@ -122,3 +123,108 @@ jobs:
       - name: Stop
         if: always()
         run: docker compose down -v
+
+  kubernetes:
+    name: Kubernetes (kind + Helm)
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build the five service images
+        run: |
+          docker build -q -t ms/user-service:ci .
+          for s in comment-service api-gateway discovery-server config-server; do
+            docker build -q --build-arg SERVICE=$s -t ms/$s:ci .
+          done
+
+      - name: Pull infrastructure images one by one (registry rate limits)
+        run: |
+          for image in public.ecr.aws/docker/library/postgres:17-alpine apache/kafka:4.3.1 ghcr.io/openzipkin/zipkin:3.6.1; do
+            for attempt in 1 2 3 4 5; do
+              docker pull -q "$image" && break
+              [ "$attempt" = 5 ] && exit 1
+              sleep $((attempt * 5))
+            done
+          done
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: ms
+
+      - name: Load images into the cluster (no registry needed)
+        run: |
+          for image in ms/user-service:ci ms/comment-service:ci ms/api-gateway:ci ms/discovery-server:ci ms/config-server:ci \
+                       public.ecr.aws/docker/library/postgres:17-alpine apache/kafka:4.3.1 ghcr.io/openzipkin/zipkin:3.6.1; do
+            kind load docker-image "$image" --name ms
+          done
+
+      - name: Install metrics-server (needed by the HorizontalPodAutoscaler)
+        run: |
+          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+          # kind's kubelets use self-signed certificates
+          kubectl patch deployment metrics-server -n kube-system --type=json \
+            -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+
+      - name: helm install
+        run: |
+          START=$(date +%s)
+          helm upgrade --install ms helm/microservices \
+            --set imageTag=ci \
+            --set secrets.dbPassword=$(openssl rand -hex 16) \
+            --set secrets.jwtSecret=$(openssl rand -base64 32) \
+            --set-file configRepo.application=config-repo/application.properties \
+            --set-file configRepo.commentService=config-repo/comment-service.properties \
+            --wait --timeout 10m
+          echo "ready after $(( $(date +%s) - START ))s" | tee install-time.txt
+
+      - name: Port-forward gateway, Eureka and Zipkin
+        run: |
+          kubectl port-forward svc/api-gateway 8765:8765 > /dev/null 2>&1 &
+          kubectl port-forward svc/discovery-server 8761:8761 > /dev/null 2>&1 &
+          kubectl port-forward svc/zipkin 9411:9411 > /dev/null 2>&1 &
+          sleep 5
+
+      - name: End-to-end checks (same script as docker compose)
+        run: ./scripts/e2e.sh 2>&1 | tee e2e.log
+
+      - name: Rolling restart of user-service while traffic flows
+        run: |
+          # requests every 0.2 s through the gateway while Kubernetes replaces the user-service pod
+          ( end=$((SECONDS + 75)); ok=0; failed=0
+            while [ $SECONDS -lt $end ]; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 localhost:8765/jpa/posts || true)
+              if [ "$code" = 200 ]; then ok=$((ok + 1)); else failed=$((failed + 1)); fi
+              sleep 0.2
+            done
+            echo "requests during rollout: $ok ok, $failed failed" > rollout.txt ) &
+          LOAD=$!
+          sleep 5
+          kubectl rollout restart deployment/user-service
+          kubectl rollout status deployment/user-service --timeout 5m
+          wait $LOAD
+          cat rollout.txt
+
+      - name: Report results
+        if: always()
+        run: |
+          note() { echo "::notice title=$1::$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')"; }
+          [ -s install-time.txt ] && note "helm install" < install-time.txt
+          [ -s e2e.log ] && note "e2e on kubernetes" < e2e.log
+          [ -s rollout.txt ] && note "rolling restart" < rollout.txt
+          kubectl get pods -o wide | note "pods"
+          kubectl get hpa | note "hpa"
+          kubectl top pods 2>&1 | note "kubectl top"
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl get pods -A
+          # pods whose READY column is not n/n, or that are not Running
+          for pod in $(kubectl get pods --no-headers | awk '{split($2, r, "/"); if (r[1] != r[2] || $3 != "Running") print $1}'); do
+            echo "::error title=$pod::$( (kubectl describe pod $pod | tail -15; kubectl logs $pod --all-containers --tail 20) 2>&1 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')"
+          done
