@@ -1,51 +1,197 @@
-# Run the whole stack:   docker compose up --build
-# Stop it:               docker compose down        (data survives in the pgdata volume)
-# Stop + wipe data:      docker compose down -v
+# The whole system in 9 containers (Phase 7):
+#   docker compose up -d --build --wait     build all images, start everything, wait until all are healthy
+#   docker compose ps                        state + health of each container
+#   docker compose logs -f comment-service   follow one service
+#   docker compose down -v                   stop and delete containers AND database volumes
 #
 # Secrets come from a .env file next to this one (copy .env.example to .env). Never commit .env.
+# Entry point for clients: the gateway on http://localhost:8765
+
+# ---- Reused blocks (YAML anchors) ----
+x-spring-service: &spring-service
+  build:
+    context: .
+  restart: unless-stopped
+  mem_limit: 768m                        # JVM heap = 75% of this (MaxRAMPercentage in the Dockerfile)
+
+x-common-env: &common-env
+  CONFIG_SERVER_URL: http://config-server:8888
+  EUREKA_URL: http://discovery-server:8761/eureka
+  ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+  JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+
+# Health check for Spring services without curl in the image: bash opens a TCP socket, sends
+# a tiny HTTP request and checks for "200" in the status line. PORT and PATH are filled per service.
+x-healthcheck: &healthcheck
+  interval: 5s
+  timeout: 3s
+  retries: 30
+  start_period: 20s
 
 services:
 
-  postgres:
-    image: public.ecr.aws/docker/library/postgres:17-alpine   # official image via the ECR Public mirror
+  # ---------------- Infrastructure ----------------
+
+  users-db:
+    image: public.ecr.aws/docker/library/postgres:17-alpine
     environment:
-      POSTGRES_DB: firstproject
+      POSTGRES_DB: users
       POSTGRES_USER: ${DB_USERNAME:-postgres}
-      # ":?" = refuse to start with this message if the variable is missing
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes:
-      - pgdata:/var/lib/postgresql/data   # named volume: data outlives the container
-    ports:
-      - "5432:5432"                        # only so you can connect with a DB tool from Windows
+      - users-db-data:/var/lib/postgresql/data
     healthcheck:
-      # $$ = a literal $ for the shell inside the container
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 10
 
-  app:
-    build: .
-    image: first-project:latest
-    depends_on:
-      postgres:
-        condition: service_healthy         # wait until PostgreSQL accepts connections, not just "started"
+  # database per service: comment-service gets its own PostgreSQL, never user-service's
+  comments-db:
+    image: public.ecr.aws/docker/library/postgres:17-alpine
     environment:
+      POSTGRES_DB: comments
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - comments-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Single-node Kafka in KRaft mode: the broker is also its own controller (no ZooKeeper)
+  kafka:
+    image: apache/kafka:4.3.1
+    mem_limit: 1g
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092      # the address clients are told to use
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      # one broker, so internal topics can only have one replica
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  zipkin:
+    image: ghcr.io/openzipkin/zipkin:3.6.1
+    mem_limit: 512m
+    ports:
+      - "9411:9411"                          # tracing UI
+
+  # ---------------- Platform services ----------------
+
+  config-server:
+    <<: *spring-service
+    build:
+      context: .
+      args:
+        SERVICE: config-server
+    mem_limit: 512m
+    environment:
+      CONFIG_REPO: file:/config-repo/
+    volumes:
+      - ./config-repo:/config-repo:ro         # edit files on the host, then POST /actuator/refresh
+    ports:
+      - "8888:8888"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8888 && printf 'GET /actuator/health HTTP/1.0\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200'"]
+
+  discovery-server:
+    <<: *spring-service
+    build:
+      context: .
+      args:
+        SERVICE: discovery-server
+    mem_limit: 512m
+    ports:
+      - "8761:8761"                          # Eureka dashboard
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8761 && printf 'GET /eureka/apps HTTP/1.0\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200'"]
+
+  # ---------------- Business services ----------------
+
+  user-service:
+    <<: *spring-service
+    build:
+      context: .                             # SERVICE defaults to "." (the repo root project)
+    depends_on:
+      users-db: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      config-server: { condition: service_healthy }
+      discovery-server: { condition: service_healthy }
+    environment:
+      <<: *common-env
       SPRING_PROFILES_ACTIVE: prod
-      # "postgres" is the service name above: Compose's network has DNS for service names
-      DB_URL: jdbc:postgresql://postgres:5432/firstproject
+      DB_URL: jdbc:postgresql://users-db:5432/users
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
-      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      EVENTS_ENABLED: "true"
+      KAFKA_SERVERS: kafka:9092
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
-      # Phase 5: no Eureka server in this compose file yet, so do not try to register
-      EUREKA_CLIENT_ENABLED: "false"
-      # Phase 6: no config server or Zipkin in this compose file either
-      SPRING_CLOUD_CONFIG_ENABLED: "false"
-      MANAGEMENT_TRACING_EXPORT_ENABLED: "false"
     ports:
-      - "8080:8080"                        # host:container
-    restart: unless-stopped
+      - "8080:8080"                          # direct access for debugging; clients use the gateway
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /actuator/health HTTP/1.0\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200'"]
+
+  comment-service:
+    <<: *spring-service
+    build:
+      context: .
+      args:
+        SERVICE: comment-service
+    depends_on:
+      comments-db: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      config-server: { condition: service_healthy }
+      discovery-server: { condition: service_healthy }
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://comments-db:5432/comments
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      EVENTS_ENABLED: "true"
+      KAFKA_SERVERS: kafka:9092
+    ports:
+      - "8082:8082"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8082 && printf 'GET /actuator/health HTTP/1.0\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200'"]
+
+  # ---------------- Edge ----------------
+
+  api-gateway:
+    <<: *spring-service
+    build:
+      context: .
+      args:
+        SERVICE: api-gateway
+    depends_on:
+      config-server: { condition: service_healthy }
+      discovery-server: { condition: service_healthy }
+    environment:
+      <<: *common-env
+    ports:
+      - "8765:8765"                          # the one port clients need
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8765 && printf 'GET /actuator/health HTTP/1.0\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200'"]
 
 volumes:
-  pgdata:
+  users-db-data:
+  comments-db-data:

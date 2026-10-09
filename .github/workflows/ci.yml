@@ -1,6 +1,7 @@
 # Runs on every push to main and every pull request.
-# 1. build-and-test: each Maven project is built and tested in parallel (a matrix)
-# 2. docker-smoke-test: builds the user-service image and runs it with PostgreSQL via docker compose
+# 1. build-and-test: each Maven project is built and tested in parallel (a matrix).
+#    Docker is available here, so Testcontainers tests (real PostgreSQL + Kafka) run too.
+# 2. e2e: builds all five images, starts the 9-container stack with docker compose and runs scripts/e2e.sh
 name: CI
 
 on:
@@ -27,6 +28,9 @@ jobs:
             dir: api-gateway
           - project: config-server
             dir: config-server
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v5
 
@@ -39,6 +43,18 @@ jobs:
       - name: Build and test
         run: ./mvnw -B -f ${{ matrix.dir }}/pom.xml verify
 
+      - name: Report test counts
+        if: always()
+        run: |
+          shopt -s nullglob
+          files=(${{ matrix.dir }}/target/surefire-reports/TEST-*.xml)
+          [ ${#files[@]} -eq 0 ] && exit 0
+          # one line per test class: "Class: tests/skipped/failed+errors", as a notice on the run page
+          summary=$(for f in "${files[@]}"; do
+            grep -o '<testsuite [^>]*' "$f" | sed -E 's/.*name="([^"]*)".*tests="([0-9]+)".*errors="([0-9]+)".*skipped="([0-9]+)".*failures="([0-9]+)".*/\1: \2 run, \4 skipped, \3 errors, \5 failures/'
+          done | sed 's/^com\.practice\.//' | sed ':a;N;$!ba;s/\n/%0A/g')
+          echo "::notice title=${{ matrix.project }} tests::$summary"
+
       - name: Keep test reports when something fails
         if: failure()
         uses: actions/upload-artifact@v4
@@ -46,14 +62,13 @@ jobs:
           name: test-reports-${{ matrix.project }}
           path: ${{ matrix.dir }}/target/surefire-reports/
 
-  docker-smoke-test:
-    name: Docker image + compose smoke test
+  e2e:
+    name: End-to-end (9 containers)
     needs: build-and-test         # only if every project's tests passed
     runs-on: ubuntu-latest
     defaults:
       run:
         # explicit bash = "-eo pipefail": a failing command before "| tee" fails the step
-        # (the default shell has no pipefail, which hid a failed build once)
         shell: bash
     steps:
       - uses: actions/checkout@v5
@@ -63,43 +78,34 @@ jobs:
           echo "DB_PASSWORD=$(openssl rand -hex 16)" >> .env
           echo "JWT_SECRET=$(openssl rand -base64 32)" >> .env
 
-      - name: Build image
+      - name: Build all images
         run: docker compose build 2>&1 | tee build.log
 
-      - name: Start app + PostgreSQL
-        run: docker compose up -d --wait 2>&1 | tee up.log
+      - name: Start the stack and wait until every container is healthy
+        run: docker compose up -d --wait --wait-timeout 300 2>&1 | tee up.log
 
-      - name: Wait for the app to be healthy
-        run: |
-          for i in $(seq 1 30); do
-            curl -sf localhost:8080/actuator/health && exit 0
-            sleep 3
-          done
-          docker compose logs app
-          exit 1
+      - name: End-to-end checks
+        run: ./scripts/e2e.sh 2>&1 | tee e2e.log
 
-      - name: Log in with a seeded user and read data from PostgreSQL
+      - name: Report results
+        if: always()
         run: |
-          TOKEN=$(curl -sf -H 'Content-Type: application/json' \
-            -d '{"username":"rambo","password":"password123"}' localhost:8080/auth/login | jq -r .accessToken)
-          curl -sf -H "Authorization: Bearer $TOKEN" localhost:8080/auth/me
-          curl -sf localhost:8080/jpa/posts | jq length
-
-      - name: Show image size and layers
-        run: |
-          docker images first-project
-          docker history first-project:latest --format '{{.Size}}\t{{.CreatedBy}}' | head -8
+          [ -s e2e.log ] && echo "::notice title=e2e results::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' e2e.log)"
+          echo "::notice title=containers::$(docker compose ps -a --format '{{.Service}}: {{.Status}}' | sed ':a;N;$!ba;s/\n/%0A/g')"
+          echo "::notice title=image sizes::$(docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep -E 'first-project|zipkin|kafka|postgres' | sed ':a;N;$!ba;s/\n/%0A/g')"
+          echo "::notice title=memory::$(docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' | sed ':a;N;$!ba;s/\n/%0A/g')"
 
       - name: Logs on failure
         if: failure()
         run: |
-          docker compose ps -a || true
-          docker compose logs --no-color > compose.log 2>&1 || true
-          # annotations are visible on the run page (and via the API) without opening the raw log
-          for f in build.log up.log compose.log; do
-            [ -s "$f" ] && echo "::error title=$f (last 40 lines)::$(tail -40 "$f" | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')"
+          for f in build.log up.log; do
+            [ -s "$f" ] && echo "::error title=$f (last 30 lines)::$(tail -30 "$f" | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')"
           done
-          cat compose.log
+          # last lines of every container that is not healthy
+          for s in $(docker compose ps -a --format '{{.Service}}|{{.Health}}|{{.State}}' | awk -F'|' '$2 == "unhealthy" || $2 == "starting" || $3 != "running" {print $1}'); do
+            echo "::error title=$s logs (last 25 lines)::$(docker compose logs --no-color --tail 25 "$s" 2>&1 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')"
+          done
+          docker compose logs --no-color
 
       - name: Stop
         if: always()

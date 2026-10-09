@@ -1,14 +1,15 @@
 # Everything listed here is NOT sent to the Docker daemon as build context:
 # smaller, faster builds, and no local secrets or stale build output inside the image.
-target/
+# (Patterns are relative to the repo root: "**/target" also covers every service's target folder.)
+**/target
 .git/
 .idea/
-*.iml
+**/*.iml
 .vscode/
+.github/
 .env
 HELP.md
-Dockerfile
+README.md
+config-repo/
+scripts/
 docker-compose.yml
-discovery-server/
-api-gateway/
-comment-service/
