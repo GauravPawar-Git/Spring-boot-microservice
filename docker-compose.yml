@@ -38,6 +38,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      # Phase 5: no Eureka server in this compose file yet, so do not try to register
+      EUREKA_CLIENT_ENABLED: "false"
     ports:
       - "8080:8080"                        # host:container
     restart: unless-stopped

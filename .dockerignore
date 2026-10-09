@@ -9,3 +9,6 @@ target/
 HELP.md
 Dockerfile
 docker-compose.yml
+discovery-server/
+api-gateway/
+comment-service/

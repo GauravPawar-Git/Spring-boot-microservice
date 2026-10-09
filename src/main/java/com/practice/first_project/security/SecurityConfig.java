@@ -45,7 +45,9 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/health", "/error").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/jpa/posts", "/jpa/users/*/posts").permitAll()
+                        // the N+1 demo stays behind login; must come before the "/jpa/posts/*" rule below
+                        .requestMatchers("/jpa/posts/n-plus-one").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/jpa/posts", "/jpa/posts/*", "/jpa/users/*/posts").permitAll()
                         .anyRequest().authenticated())
 
                 // the H2 console is drawn in <frame>s: allow framing from our own origin only

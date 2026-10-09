@@ -3,6 +3,7 @@ package com.practice.first_project.controller;
 import com.practice.first_project.dto.PostRequest;
 import com.practice.first_project.dto.PostResponse;
 import com.practice.first_project.handlers.PostLimitExceededException;
+import com.practice.first_project.handlers.PostNotFoundException;
 import com.practice.first_project.security.JsonSecurityErrorHandlers;
 import com.practice.first_project.security.JwtService;
 import com.practice.first_project.security.SecurityConfig;
@@ -120,6 +121,25 @@ class PostJPAResourcesTest {
         when(postService.getPostsOfUser(1)).thenReturn(List.of());
 
         mockMvc.perform(get("/jpa/users/1/posts")).andExpect(status().isOk());
+    }
+
+    @Test
+    void getSinglePost_isPublic_and404WhenMissing() throws Exception {
+        when(postService.getPost(7))
+                .thenReturn(new PostResponse(7, "Hello", LocalDateTime.of(2026, 10, 10, 9, 0), 1, "Rambo"));
+        when(postService.getPost(99)).thenThrow(new PostNotFoundException(99));
+
+        mockMvc.perform(get("/jpa/posts/7"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.description").value("Hello"));
+        mockMvc.perform(get("/jpa/posts/99"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Post not found with id: 99"));
+    }
+
+    @Test
+    void nPlusOneDemo_stillNeedsLogin() throws Exception {
+        mockMvc.perform(get("/jpa/posts/n-plus-one")).andExpect(status().isUnauthorized());
     }
 
     @Test

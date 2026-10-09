@@ -5,6 +5,7 @@ import com.practice.first_project.bean.User;
 import com.practice.first_project.dto.PostRequest;
 import com.practice.first_project.dto.PostResponse;
 import com.practice.first_project.handlers.PostLimitExceededException;
+import com.practice.first_project.handlers.PostNotFoundException;
 import com.practice.first_project.handlers.UserNotFoundException;
 import com.practice.first_project.repositories.PostRepository;
 import com.practice.first_project.repositories.UserRepositories;
@@ -35,6 +36,13 @@ public class PostService {
         return postRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
                 .map(PostResponse::from)
                 .toList();
+    }
+
+    // Used by comment-service (Phase 5) to check that a post exists before commenting on it
+    public PostResponse getPost(int id) {
+        return postRepository.findById(id)
+                .map(PostResponse::from)
+                .orElseThrow(() -> new PostNotFoundException(id));
     }
 
     @Transactional

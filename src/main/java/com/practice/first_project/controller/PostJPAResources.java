@@ -47,6 +47,11 @@ public class PostJPAResources {
         return postService.createPosts(userId, requests);
     }
 
+    @GetMapping("/posts/{id}")
+    public PostResponse getPost(@PathVariable int id) {
+        return postService.getPost(id);
+    }
+
     // Feed of all posts with author names: one SQL query (JOIN FETCH)
     @GetMapping("/posts")
     public List<PostResponse> getFeed() {

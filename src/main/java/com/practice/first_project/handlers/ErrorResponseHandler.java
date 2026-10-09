@@ -36,6 +36,12 @@ public class ErrorResponseHandler extends ResponseEntityExceptionHandler {
         return new ResponseEntity<>(errorDetails, HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(PostNotFoundException.class)
+    public ResponseEntity<ErrorDetails> handlePostNotFound(PostNotFoundException exception, WebRequest webRequest){
+        ErrorDetails errorDetails = new ErrorDetails(exception.getMessage(), webRequest.getDescription(false));
+        return new ResponseEntity<>(errorDetails, HttpStatus.NOT_FOUND);
+    }
+
     // 409 Conflict: the request is valid, but clashes with the current state (the user is at the post limit)
     @ExceptionHandler(PostLimitExceededException.class)
     public ResponseEntity<ErrorDetails> handlePostLimitExceeded(PostLimitExceededException exception, WebRequest webRequest){
