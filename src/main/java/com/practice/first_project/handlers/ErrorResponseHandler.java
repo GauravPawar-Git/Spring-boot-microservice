@@ -8,6 +8,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -39,6 +41,28 @@ public class ErrorResponseHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<ErrorDetails> handlePostLimitExceeded(PostLimitExceededException exception, WebRequest webRequest){
         ErrorDetails errorDetails = new ErrorDetails(exception.getMessage(), webRequest.getDescription(false));
         return new ResponseEntity<>(errorDetails, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(UsernameTakenException.class)
+    public ResponseEntity<ErrorDetails> handleUsernameTaken(UsernameTakenException exception, WebRequest webRequest){
+        ErrorDetails errorDetails = new ErrorDetails(exception.getMessage(), webRequest.getDescription(false));
+        return new ResponseEntity<>(errorDetails, HttpStatus.CONFLICT);
+    }
+
+    // Wrong login. Same message for unknown user and wrong password, on purpose.
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErrorDetails> handleAuthentication(AuthenticationException exception, WebRequest webRequest){
+        ErrorDetails errorDetails = new ErrorDetails("Invalid username or password", webRequest.getDescription(false));
+        return new ResponseEntity<>(errorDetails, HttpStatus.UNAUTHORIZED);
+    }
+
+    // @PreAuthorize failures are thrown inside the controller call, so they land HERE, not in the
+    // security filter's AccessDeniedHandler. Without this, the catch-all below would turn them into 500s.
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorDetails> handleAccessDenied(AccessDeniedException exception, WebRequest webRequest){
+        ErrorDetails errorDetails = new ErrorDetails("You do not have permission for this action",
+                webRequest.getDescription(false));
+        return new ResponseEntity<>(errorDetails, HttpStatus.FORBIDDEN);
     }
 
     // Catch-all: log the real cause for developers, send a generic message to the client

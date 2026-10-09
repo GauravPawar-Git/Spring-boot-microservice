@@ -3,6 +3,8 @@ package com.practice.first_project.bean;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -30,6 +32,19 @@ public class User {
     private String name;
 
     private LocalDate birthDate;
+
+    // Login credentials (Phase 3). Null for users created by an admin without a login.
+    @Column(unique = true, length = 30)
+    private String username;
+
+    // BCrypt hash, never the plain password. Never put this field in a response DTO.
+    @Column(length = 100)
+    private String password;
+
+    // Stored as the text 'USER' / 'ADMIN'. Never use EnumType.ORDINAL: reordering the enum would corrupt data.
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private Role role = Role.USER;
 
     // The "one" side. mappedBy = "user" means Post.user owns the foreign key; this list is just its mirror.
     // @OneToMany is LAZY by default. cascade ALL + orphanRemoval: deleting a user deletes their posts.
@@ -74,6 +89,24 @@ public class User {
 
     public void setBirthDate(LocalDate birthDate) {
         this.birthDate = birthDate;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public Role getRole() {
+        return role;
+    }
+
+    // Called on registration: the password must already be hashed
+    public void setCredentials(String username, String passwordHash) {
+        this.username = username;
+        this.password = passwordHash;
     }
 
     public List<Post> getPosts() {

@@ -9,6 +9,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.data.web.PagedModel;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -43,6 +44,7 @@ public class UserJPAResources {
 
     // 201 Created + Location: /jpa/users/{newId}
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')") // users with logins come from /auth/register; this creates one without a login
     public ResponseEntity<UserResponse> createUser(@Valid @RequestBody UserRequest request) {
         UserResponse created = userService.createUser(request);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
@@ -53,12 +55,14 @@ public class UserJPAResources {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or #id == principal.id") // admins, or the user editing themselves
     public UserResponse updateUser(@PathVariable int id, @Valid @RequestBody UserRequest request) {
         return userService.updateUser(id, request);
     }
 
     // 204 No Content: success, nothing to return
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteUserById(@PathVariable int id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();

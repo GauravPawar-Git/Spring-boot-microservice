@@ -6,6 +6,7 @@ import com.practice.first_project.service.PostService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -28,6 +29,7 @@ public class PostJPAResources {
     }
 
     @PostMapping("/users/{userId}/posts")
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id") // you can only post as yourself
     public ResponseEntity<PostResponse> createPost(@PathVariable int userId, @Valid @RequestBody PostRequest request) {
         PostResponse created = postService.createPost(userId, request);
         URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
@@ -39,6 +41,7 @@ public class PostJPAResources {
 
     // Transaction demo: all posts are saved, or none are
     @PostMapping("/users/{userId}/posts/bulk")
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
     @ResponseStatus(HttpStatus.CREATED)
     public List<PostResponse> createPosts(@PathVariable int userId, @RequestBody List<@Valid PostRequest> requests) {
         return postService.createPosts(userId, requests);
