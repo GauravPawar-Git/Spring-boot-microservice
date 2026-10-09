@@ -6,8 +6,11 @@ import com.practice.comments.dto.CommentRequest;
 import com.practice.comments.dto.CommentResponse;
 import com.practice.comments.dto.PostComments;
 import com.practice.comments.entity.Comment;
+import com.practice.comments.handlers.BannedWordException;
 import com.practice.comments.handlers.NotFoundException;
 import com.practice.comments.repository.CommentRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,10 +23,23 @@ public class CommentService {
 
     private final CommentRepository commentRepository;
     private final PostLookup postLookup;
+    private final CommentRules rules;
+    // Business metrics: show up at /actuator/prometheus as comments_created_total, comments_rejected_total{reason=...}
+    private final Counter created;
+    private final Counter rejectedBannedWord;
 
-    public CommentService(CommentRepository commentRepository, PostLookup postLookup) {
+    public CommentService(CommentRepository commentRepository, PostLookup postLookup,
+                          CommentRules rules, MeterRegistry meterRegistry) {
         this.commentRepository = commentRepository;
         this.postLookup = postLookup;
+        this.rules = rules;
+        this.created = Counter.builder("comments.created")
+                .description("Comments successfully saved")
+                .register(meterRegistry);
+        this.rejectedBannedWord = Counter.builder("comments.rejected")
+                .tag("reason", "banned_word")
+                .description("Comments rejected by content rules")
+                .register(meterRegistry);
     }
 
     // Our data always comes back; post details only if user-service answers (graceful degradation)
@@ -43,9 +59,16 @@ public class CommentService {
      * open while waiting on another service over the network.
      */
     public CommentResponse addComment(CommentRequest request, int authorId, String authorUsername) {
+        // cheap local check first, before any network call
+        String banned = rules.findBannedWord(request.text());
+        if (banned != null) {
+            rejectedBannedWord.increment();
+            throw new BannedWordException(banned);
+        }
         postLookup.findPost(request.postId())   // throws UserServiceUnavailableException -> 503
                 .orElseThrow(() -> new NotFoundException("Post not found with id: " + request.postId()));
         Comment saved = commentRepository.save(new Comment(request.postId(), authorId, authorUsername, request.text()));
+        created.increment();
         return CommentResponse.from(saved);
     }
 
@@ -57,5 +80,11 @@ public class CommentService {
             throw new AccessDeniedException("Not the author");
         }
         commentRepository.delete(comment);
+    }
+
+    // Called by the Kafka listener when user-service deleted posts: our copies would be orphans
+    @Transactional
+    public long deleteCommentsOfPosts(List<Integer> postIds) {
+        return commentRepository.deleteByPostIdIn(postIds);
     }
 }

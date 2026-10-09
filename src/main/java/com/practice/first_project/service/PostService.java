@@ -9,6 +9,7 @@ import com.practice.first_project.handlers.PostNotFoundException;
 import com.practice.first_project.handlers.UserNotFoundException;
 import com.practice.first_project.repositories.PostRepository;
 import com.practice.first_project.repositories.UserRepositories;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,7 +39,9 @@ public class PostService {
                 .toList();
     }
 
-    // Used by comment-service (Phase 5) to check that a post exists before commenting on it
+    // Used by comment-service (Phase 5) to check that a post exists before commenting on it.
+    // Cached (Phase 6): repeated lookups of the same post skip the database for up to 60 s.
+    @Cacheable(cacheNames = "posts", key = "#id")
     public PostResponse getPost(int id) {
         return postRepository.findById(id)
                 .map(PostResponse::from)

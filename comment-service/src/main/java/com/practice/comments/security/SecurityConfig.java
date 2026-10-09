@@ -33,6 +33,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/comments/**").permitAll()
                         .requestMatchers("/actuator/health", "/h2-console/**", "/error").permitAll()
+                        // metrics are scraped by Prometheus; in production keep this port internal-only
+                        .requestMatchers("/actuator/prometheus").permitAll()
+                        // reloading configuration changes behaviour: admins only
+                        .requestMatchers("/actuator/refresh").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));

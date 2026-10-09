@@ -89,6 +89,36 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
+        <!-- Phase 6: central config, tracing, metrics, caching, events -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-zipkin</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- Phase 3: security + JWT -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -158,6 +188,9 @@
                     <systemPropertyVariables>
                         <!-- tests must not try to reach a running Eureka server -->
                         <eureka.client.enabled>false</eureka.client.enabled>
+                        <!-- tests don't need a config server or a Zipkin server -->
+                        <spring.cloud.config.enabled>false</spring.cloud.config.enabled>
+                        <management.tracing.export.enabled>false</management.tracing.export.enabled>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

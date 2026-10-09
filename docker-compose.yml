@@ -40,6 +40,9 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       # Phase 5: no Eureka server in this compose file yet, so do not try to register
       EUREKA_CLIENT_ENABLED: "false"
+      # Phase 6: no config server or Zipkin in this compose file either
+      SPRING_CLOUD_CONFIG_ENABLED: "false"
+      MANAGEMENT_TRACING_EXPORT_ENABLED: "false"
     ports:
       - "8080:8080"                        # host:container
     restart: unless-stopped

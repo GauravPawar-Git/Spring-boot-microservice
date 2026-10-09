@@ -27,6 +27,11 @@ public class ErrorResponseHandler extends ResponseEntityExceptionHandler {
         return new ResponseEntity<>(new ErrorDetails(exception.getMessage(), request.getDescription(false)), HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(BannedWordException.class)
+    public ResponseEntity<ErrorDetails> handleBannedWord(BannedWordException exception, WebRequest request) {
+        return new ResponseEntity<>(new ErrorDetails(exception.getMessage(), request.getDescription(false)), HttpStatus.BAD_REQUEST);
+    }
+
     // 503: we're fine, a service we depend on isn't. Clients may retry later.
     @ExceptionHandler(UserServiceUnavailableException.class)
     public ResponseEntity<ErrorDetails> handleUnavailable(UserServiceUnavailableException exception, WebRequest request) {

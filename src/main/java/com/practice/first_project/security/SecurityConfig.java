@@ -44,6 +44,8 @@ public class SecurityConfig {
                         .requestMatchers("/auth/register", "/auth/login").permitAll()
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/health", "/error").permitAll()
+                        // Phase 6: metrics for Prometheus; in production expose actuator on an internal port only
+                        .requestMatchers("/actuator/prometheus").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
                         // the N+1 demo stays behind login; must come before the "/jpa/posts/*" rule below
                         .requestMatchers("/jpa/posts/n-plus-one").authenticated()

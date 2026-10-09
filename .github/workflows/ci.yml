@@ -50,6 +50,11 @@ jobs:
     name: Docker image + compose smoke test
     needs: build-and-test         # only if every project's tests passed
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        # explicit bash = "-eo pipefail": a failing command before "| tee" fails the step
+        # (the default shell has no pipefail, which hid a failed build once)
+        shell: bash
     steps:
       - uses: actions/checkout@v5
 

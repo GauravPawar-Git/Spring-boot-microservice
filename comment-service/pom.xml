@@ -71,9 +71,37 @@
             <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
         </dependency>
 
+        <!-- Phase 6: central config, tracing, metrics, events -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-zipkin</artifactId>
+        </dependency>
+        <dependency>
+            <!-- propagates the trace id on Feign calls to user-service -->
+            <groupId>io.github.openfeign</groupId>
+            <artifactId>feign-micrometer</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -107,6 +135,9 @@
                 <configuration>
                     <systemPropertyVariables>
                         <eureka.client.enabled>false</eureka.client.enabled>
+                        <!-- tests don't need a config server or a Zipkin server -->
+                        <spring.cloud.config.enabled>false</spring.cloud.config.enabled>
+                        <management.tracing.export.enabled>false</management.tracing.export.enabled>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

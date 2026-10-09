@@ -5,11 +5,13 @@ import com.practice.comments.client.PostSummary;
 import com.practice.comments.dto.CommentRequest;
 import com.practice.comments.dto.PostComments;
 import com.practice.comments.entity.Comment;
+import com.practice.comments.handlers.BannedWordException;
 import com.practice.comments.handlers.NotFoundException;
 import com.practice.comments.repository.CommentRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
@@ -33,8 +35,15 @@ class CommentServiceTest {
     @Mock
     private PostLookup postLookup;
 
-    @InjectMocks
     private CommentService commentService;
+
+    @BeforeEach
+    void setUp() {
+        CommentRules rules = new CommentRules();
+        rules.setBannedWords(List.of("spam", "scam"));
+        // a real in-memory MeterRegistry: counters work, nothing is exported
+        commentService = new CommentService(commentRepository, postLookup, rules, new SimpleMeterRegistry());
+    }
 
     @Test
     void addComment_404_whenPostDoesNotExist_andNothingSaved() {
@@ -65,6 +74,14 @@ class CommentServiceTest {
 
         assertThat(result.postDescription()).isEqualTo("Learning Spring Boot");
         assertThat(result.postAuthor()).isEqualTo("Rambo");
+    }
+
+    @Test
+    void addComment_rejectsBannedWords_beforeCallingUserService() {
+        assertThatThrownBy(() -> commentService.addComment(new CommentRequest(1, "Cheap SPAM here"), 3, "vigo"))
+                .isInstanceOf(BannedWordException.class)
+                .hasMessage("Comment contains a banned word: spam");
+        verify(postLookup, never()).findPost(1);
     }
 
     @Test
