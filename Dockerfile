@@ -1,16 +1,18 @@
 # One Dockerfile for all five services. The build context is always the repo root
-# (it has the shared Maven wrapper); SERVICE picks the project folder:
-#   docker build -t user-service .                                   (SERVICE defaults to ".")
+# (shared Maven wrapper + parent pom); SERVICE picks the module folder:
+#   docker build -t user-service .                                   (SERVICE defaults to user-service)
 #   docker build -t comment-service --build-arg SERVICE=comment-service .
 
 # ---------- Stage 1: build the jar with a full JDK + Maven wrapper ----------
 # Official Docker images, pulled via the AWS ECR Public mirror (Docker Hub auth was timing out in CI)
 FROM public.ecr.aws/docker/library/eclipse-temurin:25-jdk AS build
-ARG SERVICE=.
+ARG SERVICE=user-service
 WORKDIR /workspace
 
 COPY .mvn/ .mvn/
 COPY mvnw ./
+# the parent pom: versions and build settings shared by all modules (found through ../pom.xml)
+COPY pom.xml ./
 COPY ${SERVICE}/pom.xml ${SERVICE}/pom.xml
 COPY ${SERVICE}/src ${SERVICE}/src
 

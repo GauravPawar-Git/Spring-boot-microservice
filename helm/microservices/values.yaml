@@ -49,7 +49,7 @@ services:
       limits: { memory: 512Mi }
 
   user-service:
-    folder: user-service                 # image name suffix; built from the repo root
+    folder: user-service                 # module folder = image name suffix
     port: 8080
     probes: actuator
     waitForDatabase: users-db

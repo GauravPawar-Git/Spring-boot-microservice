@@ -1,5 +1,5 @@
 # Runs on every push to main and every pull request.
-# 1. build-and-test: each Maven project is built and tested in parallel (a matrix).
+# 1. build-and-test: each module of the multi-module build is tested in parallel (a matrix, -pl <module>).
 #    Docker is available here, so Testcontainers tests (real PostgreSQL + Kafka) run too.
 # 2. e2e: builds all five images, starts the 9-container stack with docker compose and runs scripts/e2e.sh
 # 3. kubernetes: installs the Helm chart on a throwaway kind cluster and runs the same scripts/e2e.sh
@@ -17,18 +17,8 @@ jobs:
     strategy:
       fail-fast: false            # one failing service shouldn't hide the others' results
       matrix:
+        # module folders of the parent pom
         project: [user-service, comment-service, discovery-server, api-gateway, config-server]
-        include:
-          - project: user-service
-            dir: .
-          - project: comment-service
-            dir: comment-service
-          - project: discovery-server
-            dir: discovery-server
-          - project: api-gateway
-            dir: api-gateway
-          - project: config-server
-            dir: config-server
     defaults:
       run:
         shell: bash
@@ -42,13 +32,14 @@ jobs:
           cache: maven              # reuse ~/.m2 between runs: much faster builds
 
       - name: Build and test
-        run: ./mvnw -B -f ${{ matrix.dir }}/pom.xml verify
+        # -pl: build only this module (the parent pom is read from the repo root)
+        run: ./mvnw -B -pl ${{ matrix.project }} verify
 
       - name: Report test counts
         if: always()
         run: |
           shopt -s nullglob
-          files=(${{ matrix.dir }}/target/surefire-reports/TEST-*.xml)
+          files=(${{ matrix.project }}/target/surefire-reports/TEST-*.xml)
           [ ${#files[@]} -eq 0 ] && exit 0
           # one line per test class: "Class: tests/skipped/failed+errors", as a notice on the run page
           summary=$(for f in "${files[@]}"; do
@@ -61,7 +52,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-reports-${{ matrix.project }}
-          path: ${{ matrix.dir }}/target/surefire-reports/
+          path: ${{ matrix.project }}/target/surefire-reports/
 
   e2e:
     name: End-to-end (9 containers)

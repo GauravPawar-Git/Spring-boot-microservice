@@ -28,7 +28,7 @@ flowchart LR
 
 | Service | Port | Responsibility |
 | --- | --- | --- |
-| `user-service` (repo root) | 8080 | Users, posts, registration/login; issues JWTs; publishes `posts-deleted` events |
+| `user-service` | 8080 | Users, posts, registration/login; issues JWTs; publishes `posts-deleted` events |
 | `comment-service` | 8082 | Comments; its own database; checks posts via user-service; consumes `posts-deleted` |
 | `api-gateway` | 8765 | Single entry point; routes by path; load-balances via Eureka |
 | `discovery-server` | 8761 | Eureka service registry |
@@ -59,7 +59,7 @@ Four ways to run it; full steps and checks are in the **[Runbook](docs/RUNBOOK.m
 
 | Option | Needs | Command | You get |
 | --- | --- | --- | --- |
-| A. One service | JDK 25 | `./mvnw spring-boot:run` | user-service on H2, Swagger at http://localhost:8080/swagger-ui.html |
+| A. One service | JDK 25 | `./mvnw -pl user-service spring-boot:run` | user-service on H2, Swagger at http://localhost:8080/swagger-ui.html |
 | B. All services as jars | JDK 25 | build, then start 6 jars in order ([steps](docs/RUNBOOK.md#option-b--all-services-as-jars-no-docker)) | everything except Kafka |
 | C. Docker Compose | Docker | `cp .env.example .env` → `docker compose up -d --build --wait` → `./scripts/e2e.sh` | all 9 containers, Kafka on |
 | D. Kubernetes | Docker, kind, Helm | build images → `kind create cluster` → `helm upgrade --install ...` ([steps](docs/RUNBOOK.md#option-d--kubernetes-with-helm)) | the same system on Kubernetes |
@@ -115,16 +115,16 @@ Operational endpoints: `/actuator/health` (+ `/liveness`, `/readiness`), `/actua
 ## Tests
 
 ```bash
-./mvnw verify                              # user-service: 41 tests (the Testcontainers one is skipped without Docker)
-./mvnw -f comment-service/pom.xml verify   # comment-service: 14 tests
-./mvnw -f config-server/pom.xml verify     # config-server: 1 test
+./mvnw verify                              # all 5 modules: 56 tests (the Testcontainers one is skipped without Docker)
+./mvnw -pl comment-service verify          # one module only
 ./scripts/e2e.sh                           # against a running Compose or Kubernetes stack
 ```
 
 ## Project layout
 
 ```
-.                       user-service (Spring Boot app at the repo root)
+.                       parent pom.xml: the 5 modules below, shared versions and test settings
+├── user-service/       users, posts, login/JWT, posts-deleted publisher, cache
 ├── comment-service/    comments, Feign client, circuit breaker, Kafka listener
 ├── api-gateway/        Spring Cloud Gateway routes
 ├── discovery-server/   Eureka server

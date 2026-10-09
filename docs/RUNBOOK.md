@@ -2,7 +2,7 @@
 
 How to start the project in each supported way, how to check that every service is healthy, and how to fix the problems that actually came up while building it.
 
-- [Prerequisites](#prerequisites)
+- [Prerequisites](#prerequisites) (and [opening it in IntelliJ](#opening-the-project-in-intellij-idea))
 - [Ports and URLs](#ports-and-urls)
 - [Option A — one service, no setup](#option-a--one-service-no-setup)
 - [Option B — all services as jars (no Docker)](#option-b--all-services-as-jars-no-docker)
@@ -23,9 +23,15 @@ How to start the project in each supported way, how to check that every service 
 | Docker Desktop (with WSL 2 on Windows) | options C and D, Testcontainers tests | `docker version` |
 | kind, kubectl, Helm 3+ | option D | `kind version`, `helm version` |
 
-Maven is not needed: every command uses the wrapper `./mvnw` from the repo root.
+Maven is not needed: every command uses the wrapper `./mvnw` from the repo root. The root `pom.xml` is the parent of the five modules, so `./mvnw <goal>` runs on all of them and `-pl <module>` picks one.
 
 On Windows, if `java` is not on the PATH, point `JAVA_HOME` at a JDK 25 first, for example `export JAVA_HOME="C:/Users/<you>/.jdks/jbr-25.0.4.1"` in Git Bash.
+
+### Opening the project in IntelliJ IDEA
+
+Open the repo folder (or **File → Open → `pom.xml` at the root → Open as Project**). IntelliJ reads the parent pom and imports all five modules, each with its sources, dependencies and a runnable `*Application` class.
+
+After pulling the multi-module restructure into an existing checkout: open the **Maven** tool window and click **Reload All Maven Projects**. If modules still show as plain folders, close the project, delete the `.idea` folder, and open the root `pom.xml` again.
 
 ## Ports and URLs
 
@@ -46,7 +52,7 @@ Seed accounts (password `password123` for all): `rambo` (ADMIN), `shamlal`, `vig
 user-service alone with an in-memory H2 database. The quickest way to try the API, security, JPA and Swagger.
 
 ```bash
-./mvnw spring-boot:run
+./mvnw -pl user-service spring-boot:run
 ```
 
 - Swagger UI: http://localhost:8080/swagger-ui.html → `POST /auth/login` → copy `accessToken` → **Authorize**.
@@ -60,8 +66,7 @@ Six processes, each in its own terminal. Kafka is off in this mode (no broker), 
 **1. Build all five projects** (once, and after code changes; stop running services first on Windows, see [Troubleshooting](#troubleshooting)):
 
 ```bash
-./mvnw -q package -DskipTests
-for p in config-server discovery-server comment-service api-gateway; do ./mvnw -q -f $p/pom.xml package -DskipTests; done
+./mvnw -q package -DskipTests        # builds all five modules
 ```
 
 **2. Start them in this order** (Zipkin is optional; download [zipkin-server-3.6.1-exec.jar](https://repo1.maven.org/maven2/io/zipkin/zipkin-server/3.6.1/zipkin-server-3.6.1-exec.jar) once):
@@ -70,7 +75,7 @@ for p in config-server discovery-server comment-service api-gateway; do ./mvnw -
 java -jar zipkin-server-3.6.1-exec.jar                                   # :9411 (optional)
 java -jar config-server/target/config-server-0.0.1-SNAPSHOT.jar          # :8888  start before the others
 java -jar discovery-server/target/discovery-server-0.0.1-SNAPSHOT.jar    # :8761
-java -jar target/first-project-0.0.1-SNAPSHOT.jar                        # :8080  user-service
+java -jar user-service/target/user-service-0.0.1-SNAPSHOT.jar            # :8080
 java -jar comment-service/target/comment-service-0.0.1-SNAPSHOT.jar      # :8082
 java -jar api-gateway/target/api-gateway-0.0.1-SNAPSHOT.jar              # :8765
 ```
@@ -113,7 +118,7 @@ The same images on a local [kind](https://kind.sigs.k8s.io/) cluster, installed 
 
 ```bash
 # 1. images
-docker build -t ms/user-service:ci .
+docker build -t ms/user-service:ci .            # SERVICE defaults to user-service
 for s in comment-service api-gateway discovery-server config-server; do docker build --build-arg SERVICE=$s -t ms/$s:ci .; done
 
 # 2. cluster + images inside it (no registry needed)
@@ -209,9 +214,8 @@ curl -s -H "Authorization: Bearer $VIGO" -H 'Content-Type: application/json' \
 ## Running the tests
 
 ```bash
-./mvnw verify                                        # user-service (41 tests; 1 needs Docker)
-./mvnw -f comment-service/pom.xml verify             # comment-service (14 tests)
-./mvnw -f config-server/pom.xml verify               # config-server (1 test)
+./mvnw verify                          # all modules: 56 tests (user-service 41, comment-service 14, config-server 1)
+./mvnw -pl comment-service verify      # one module
 ```
 
 `RealInfrastructureContainersTest` uses Testcontainers (real PostgreSQL 17 + Kafka). Without Docker it is reported as **skipped**, not failed.

@@ -165,6 +165,26 @@ All numbers come from real runs: local runs, or GitHub Actions jobs (the CI anno
 
 ---
 
+## Afterwards — multi-module restructure
+
+**Problem**: the original app was the repo root (`pom.xml` + `src/`), and the four services added later lived *inside* its folder as unrelated Maven projects. IntelliJ imported only the root pom, so `comment-service/`, `api-gateway/` and the rest were plain folders: no source roots, unresolved imports, no run buttons. The Boot, Java and Spring Cloud versions were also copied into five poms.
+
+**Fix**: a standard multi-module build.
+
+- The root `pom.xml` is now a parent with `<packaging>pom</packaging>`. It lists the five `<modules>` and holds the shared versions (`spring-cloud.version`, JJWT, springdoc) and test settings once.
+- The original app moved to `user-service/` with `git mv`, so its history is kept. The artifact `first-project` became `user-service`.
+- Every service pom inherits from the parent and lists only its own dependencies.
+- `./mvnw verify` builds and tests all 56 tests in one reactor; `./mvnw -pl <module> ...` targets one module.
+- The Dockerfile copies the parent pom too (children find it through `../pom.xml`) and defaults to `SERVICE=user-service`. The CI matrix uses `-pl <module>`.
+
+**Cleanups done at the same time**:
+- The Phase 1 in-memory `UserResources` + `UserDAO` were removed; the JPA version replaced them long ago.
+- The JPA entities (`User`, `Post`, `Role`) moved from `bean` to `entity`.
+- The leftover `HELP.md` was deleted.
+- The Java package name `com.practice.first_project` was kept: renaming it would touch every file for no functional gain.
+
+---
+
 ## What is not done yet
 
 These are the next steps for a senior-level showcase:

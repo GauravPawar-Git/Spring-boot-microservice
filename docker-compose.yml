@@ -128,7 +128,9 @@ services:
   user-service:
     <<: *spring-service
     build:
-      context: .                             # SERVICE defaults to "." (the repo root project)
+      context: .
+      args:
+        SERVICE: user-service
     depends_on:
       users-db: { condition: service_healthy }
       kafka: { condition: service_healthy }
