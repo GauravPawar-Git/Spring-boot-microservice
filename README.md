@@ -2,105 +2,91 @@
 
 [![CI](https://github.com/GauravPawar-Git/Spring-boot-microservice/actions/workflows/ci.yml/badge.svg)](https://github.com/GauravPawar-Git/Spring-boot-microservice/actions/workflows/ci.yml)
 
-A REST API that grew, step by step, from a single Spring Boot app into a small microservice system: users, posts and comments, with JWT security, PostgreSQL, Docker, service discovery, an API gateway, circuit breakers, distributed tracing, metrics, caching and Kafka events.
+A REST API that grew, step by step, from a single Spring Boot app into a microservice system running on Kubernetes: users, posts and comments, with JWT security, PostgreSQL, an API gateway, service discovery, a circuit breaker, Kafka events, distributed tracing, metrics and caching.
 
-It was built to learn and explain each concept, so the code is commented with the *why*, not just the *what*.
+Every push is built and tested, started as 9 Docker containers, and deployed with Helm to a throwaway Kubernetes cluster, where the same end-to-end checks run.
+
+📖 **[Walkthrough](docs/WALKTHROUGH.md)**: what was built in each of the 8 phases, why, what went wrong, and the numbers measured.
+🛠️ **[Runbook](docs/RUNBOOK.md)**: how to run it 4 ways, how to check every service, and troubleshooting.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     client([Client]) -->|":8765"| gw[api-gateway]
-    gw -->|"/auth/**, /jpa/**"| us[user-service :8080]
-    gw -->|"/comments/**"| cs[comment-service :8082]
-    cs -->|"Feign + circuit breaker"| us
-    us --> udb[(PostgreSQL / H2)]
-    cs --> cdb[(H2 comments)]
-    us -.->|"posts-deleted event"| kafka{{Kafka}}
+    gw -->|"/auth/**, /jpa/**"| us[user-service]
+    gw -->|"/comments/**"| cs[comment-service]
+    cs -->|"sync: Feign + circuit breaker"| us
+    us --> udb[(users-db<br/>PostgreSQL)]
+    cs --> cdb[(comments-db<br/>PostgreSQL)]
+    us -.->|"async: posts-deleted"| kafka{{Kafka}}
     kafka -.-> cs
-    gw & us & cs -.->|register / lookup| eureka[discovery-server :8761]
-    gw & us & cs -.->|config| config[config-server :8888]
-    gw & us & cs -.->|spans| zipkin[Zipkin :9411]
+    gw & us & cs -.->|register / lookup| eureka[discovery-server]
+    gw & us & cs -.->|config| config[config-server]
+    gw & us & cs -.->|spans| zipkin[Zipkin]
 ```
 
 | Service | Port | Responsibility |
 | --- | --- | --- |
-| `user-service` (repo root) | 8080 | Users, posts, registration/login, issues JWTs |
-| `comment-service` | 8082 | Comments on posts; own database; checks posts via user-service |
+| `user-service` (repo root) | 8080 | Users, posts, registration/login; issues JWTs; publishes `posts-deleted` events |
+| `comment-service` | 8082 | Comments; its own database; checks posts via user-service; consumes `posts-deleted` |
 | `api-gateway` | 8765 | Single entry point; routes by path; load-balances via Eureka |
 | `discovery-server` | 8761 | Eureka service registry |
-| `config-server` | 8888 | Serves shared configuration from `config-repo/` |
+| `config-server` | 8888 | Serves shared configuration from `config-repo/`, live-reloadable |
+
+## Highlights
+
+| Area | What's inside |
+| --- | --- |
+| **Core** | Controller → Service → Repository, record DTOs, constructor injection, global error handling, pagination |
+| **Data** | Flyway migrations, H2 (`dev`) / PostgreSQL (`prod`) profiles, N+1 demo vs `JOIN FETCH` (5 queries → 1, tested), transactional rollback, Caffeine cache with eviction |
+| **Security** | Stateless JWT, BCrypt, `USER`/`ADMIN` roles, owner-only `@PreAuthorize`, JSON 401/403, OAuth2 Resource Server in comment-service |
+| **Communication** | Sync: OpenFeign behind a Resilience4j circuit breaker with fallbacks. Async: Kafka event sent after commit (`@TransactionalEventListener`), idempotent consumer |
+| **Platform** | Spring Cloud Gateway, Eureka, Config Server with `/actuator/refresh`, database per service |
+| **Observability** | Micrometer Tracing + Zipkin (one trace across 3 services), Prometheus metrics with custom counters |
+| **Containers** | One parameterized Dockerfile (layered jars, non-root UID, BuildKit cache), 9-container Compose with health checks |
+| **Kubernetes** | Helm chart: probes on Spring Boot health groups, requests/limits, Secret, ConfigMap, StatefulSets, HPA, init containers |
+| **Testing** | Unit, `@WebMvcTest`, `@DataJpaTest`, full-context, Embedded Kafka, **Testcontainers** (PostgreSQL 17 + Kafka 4.3.1), end-to-end script |
+| **CI** | GitHub Actions: 5-project test matrix → Compose end-to-end → kind + Helm end-to-end + rolling-restart test |
 
 ## Tech stack
 
-Java 25 · Spring Boot 4.1 · Spring Cloud 2025.1 · Spring Security (JWT, OAuth2 Resource Server) · Spring Data JPA / Hibernate · Flyway · PostgreSQL / H2 · OpenFeign · Resilience4j · Spring Cloud Gateway · Eureka · Config Server · Micrometer Tracing + Zipkin · Micrometer + Prometheus · Caffeine · Apache Kafka · Docker / Docker Compose · GitHub Actions · JUnit 5, Mockito, MockMvc, Embedded Kafka
+Java 25 · Spring Boot 4.1 · Spring Cloud 2025.1 · Spring Security · Spring Data JPA / Hibernate · Flyway · PostgreSQL 17 / H2 · OpenFeign · Resilience4j · Spring Cloud Gateway · Eureka · Config Server · Apache Kafka 4.3 (KRaft) · Micrometer Tracing + Zipkin · Micrometer + Prometheus · Caffeine · Docker · Docker Compose · Kubernetes · Helm · GitHub Actions · JUnit 5 · Mockito · Testcontainers
 
-## What's inside
+## Quick start
 
-| Area | Highlights |
-| --- | --- |
-| **Clean core** | Controller → Service → Repository, record DTOs, constructor injection, global exception handling, pagination & sorting |
-| **Database** | `dev` (H2) and `prod` (PostgreSQL) profiles, Flyway migrations, `User 1—* Post`, N+1 demo vs `JOIN FETCH` / `@EntityGraph`, transactional rollback |
-| **Security** | Stateless JWT (HS256), BCrypt passwords, `USER`/`ADMIN` roles, `@PreAuthorize` ownership checks, JSON 401/403, CORS |
-| **Docker** | Multi-stage Dockerfile with Spring Boot layered jars, non-root user; Compose with PostgreSQL, health checks, `.env` secrets |
-| **Microservices** | Eureka, Spring Cloud Gateway, OpenFeign, Resilience4j circuit breaker with fallbacks, database per service |
-| **Production readiness** | CI pipeline, Config Server with live refresh, distributed tracing, Prometheus metrics, `@Cacheable`, Kafka events published after commit |
+Four ways to run it; full steps and checks are in the **[Runbook](docs/RUNBOOK.md)**.
 
-## Running locally
+| Option | Needs | Command | You get |
+| --- | --- | --- | --- |
+| A. One service | JDK 25 | `./mvnw spring-boot:run` | user-service on H2, Swagger at http://localhost:8080/swagger-ui.html |
+| B. All services as jars | JDK 25 | build, then start 6 jars in order ([steps](docs/RUNBOOK.md#option-b--all-services-as-jars-no-docker)) | everything except Kafka |
+| C. Docker Compose | Docker | `cp .env.example .env` → `docker compose up -d --build --wait` → `./scripts/e2e.sh` | all 9 containers, Kafka on |
+| D. Kubernetes | Docker, kind, Helm | build images → `kind create cluster` → `helm upgrade --install ...` ([steps](docs/RUNBOOK.md#option-d--kubernetes-with-helm)) | the same system on Kubernetes |
 
-Prerequisites: **JDK 25**. Docker is optional (only for the Compose setup).
-
-### Just the main service (H2, no other services needed)
+Seed accounts (password `password123`): `rambo` (ADMIN), `shamlal`, `vigo`, `diga` (USER). Entry point: **http://localhost:8765**.
 
 ```bash
-./mvnw spring-boot:run
-```
-
-Open Swagger UI at http://localhost:8080/swagger-ui.html, call `POST /auth/login`, then click **Authorize** and paste the token.
-
-Seed accounts (password `password123` for all): `rambo` (ADMIN), `shamlal`, `vigo`, `diga` (USER).
-
-### The whole system
-
-Build every project once:
-
-```bash
-./mvnw -q package -DskipTests
-for p in config-server discovery-server comment-service api-gateway; do ./mvnw -q -f $p/pom.xml package -DskipTests; done
-```
-
-Then start each in its own terminal, **in this order**:
-
-```bash
-java -jar zipkin-server-3.6.1-exec.jar                            # optional, tracing UI on :9411
-java -jar config-server/target/config-server-0.0.1-SNAPSHOT.jar
-java -jar discovery-server/target/discovery-server-0.0.1-SNAPSHOT.jar
-java -jar target/first-project-0.0.1-SNAPSHOT.jar                  # user-service
-java -jar comment-service/target/comment-service-0.0.1-SNAPSHOT.jar
-java -jar api-gateway/target/api-gateway-0.0.1-SNAPSHOT.jar
-```
-
-Zipkin's server jar is on [Maven Central](https://repo1.maven.org/maven2/io/zipkin/zipkin-server/3.6.1/zipkin-server-3.6.1-exec.jar). Wait about 30 seconds after the last service starts so Eureka's caches pick everything up, then send all requests to the gateway on port **8765**:
-
-```bash
-TOKEN=$(curl -s -H "Content-Type: application/json" \
-  -d '{"username":"vigo","password":"password123"}' localhost:8765/auth/login \
-  | sed 's/.*"accessToken":"\([^"]*\)".*/\1/')
-
-curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+TOKEN=$(curl -s -H 'Content-Type: application/json' \
+  -d '{"username":"vigo","password":"password123"}' localhost:8765/auth/login | jq -r .accessToken)
+curl -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"postId":1,"text":"Great post!"}' localhost:8765/comments
-
 curl "localhost:8765/comments?postId=1"
 ```
 
-Kafka events are off by default (`EVENTS_ENABLED=false`). Set `EVENTS_ENABLED=true` and `KAFKA_SERVERS=host:port` on user-service and comment-service when a broker is available.
+## Measured results
 
-### Docker Compose (user-service + PostgreSQL)
+From the CI runs (GitHub Actions) and local runs. Details are in the [walkthrough](docs/WALKTHROUGH.md).
 
-```bash
-cp .env.example .env        # set DB_PASSWORD and JWT_SECRET (head -c 32 /dev/urandom | base64)
-docker compose up --build
-```
+| What | Result |
+| --- | --- |
+| N+1 feed vs `JOIN FETCH` | 5 SQL statements → 1 |
+| Circuit breaker with user-service down | first write 1.03 s (timeout), then 13–29 ms fast-fail; reads keep working |
+| Kafka clean-up across services | comments removed within 3–4 s of deleting the user |
+| One request traced | api-gateway → comment-service → user-service in a single Zipkin trace |
+| Full stack memory (Compose) | about 2.3 GiB for 9 containers |
+| `helm install --wait` on kind | ready in 33–45 s; HPA scaled comment-service to 2 pods under start-up load |
+| Rolling restart of user-service under traffic | 139 ok / 32 failed: Eureka's cached registry, a documented reason to prefer Kubernetes-native discovery |
 
 ## API overview
 
@@ -116,7 +102,7 @@ docker compose up --build
 | `DELETE /jpa/users/{id}` | ADMIN | Delete a user and their posts (publishes `posts-deleted`) |
 | `GET /jpa/posts` | Public | Feed of all posts (one query, `JOIN FETCH`) |
 | `GET /jpa/posts/{id}` | Public | One post (cached) |
-| `GET /jpa/posts/n-plus-one` | Logged in | Same feed, built the N+1 way, for comparison |
+| `GET /jpa/posts/n-plus-one` | Logged in | Same feed built the N+1 way, for comparison |
 | `GET /jpa/users/{id}/posts` | Public | A user's posts |
 | `POST /jpa/users/{id}/posts` | ADMIN or self | Create a post |
 | `POST /jpa/users/{id}/posts/bulk` | ADMIN or self | All-or-nothing bulk create (max 10 posts per user) |
@@ -124,38 +110,36 @@ docker compose up --build
 | `POST /comments` | Logged in | Add a comment (post must exist; banned words rejected) |
 | `DELETE /comments/{id}` | Author or ADMIN | Delete a comment |
 
-Useful extras: `/actuator/health`, `/actuator/prometheus` (user- and comment-service), `POST /actuator/refresh` on comment-service (ADMIN), the Eureka dashboard at http://localhost:8761, and `/actuator/gateway/routes` on the gateway.
+Operational endpoints: `/actuator/health` (+ `/liveness`, `/readiness`), `/actuator/prometheus`, `POST /actuator/refresh` (comment-service, ADMIN), `/actuator/gateway/routes`, Eureka dashboard on :8761, Zipkin on :9411.
 
 ## Tests
 
 ```bash
-./mvnw verify                              # user-service
-./mvnw -f comment-service/pom.xml verify   # comment-service
+./mvnw verify                              # user-service: 41 tests (the Testcontainers one is skipped without Docker)
+./mvnw -f comment-service/pom.xml verify   # comment-service: 14 tests
+./mvnw -f config-server/pom.xml verify     # config-server: 1 test
+./scripts/e2e.sh                           # against a running Compose or Kubernetes stack
 ```
-
-The tests cover:
-- Service unit tests (Mockito).
-- Web-layer slice tests with the real security rules (`@WebMvcTest`).
-- JPA slice tests, including one that counts SQL statements to catch N+1 regressions (`@DataJpaTest`).
-- Full-context tests: login flow, transaction rollback, caching, circuit breaker behaviour.
-- Kafka publish and consume against an embedded broker.
-
-CI runs all five projects on every push, then builds the Docker image and smoke-tests it with PostgreSQL ([workflow](.github/workflows/ci.yml)).
 
 ## Project layout
 
 ```
-.                      user-service (Spring Boot app at the repo root)
-├── comment-service/   comments, Feign client, circuit breaker, Kafka listener
-├── api-gateway/       Spring Cloud Gateway routes
-├── discovery-server/  Eureka server
-├── config-server/     Spring Cloud Config Server
-├── config-repo/       configuration served by config-server
-├── Dockerfile, docker-compose.yml, .env.example
+.                       user-service (Spring Boot app at the repo root)
+├── comment-service/    comments, Feign client, circuit breaker, Kafka listener
+├── api-gateway/        Spring Cloud Gateway routes
+├── discovery-server/   Eureka server
+├── config-server/      Spring Cloud Config Server
+├── config-repo/        configuration served by config-server
+├── helm/microservices/ Helm chart for Kubernetes
+├── scripts/e2e.sh      end-to-end checks (Compose and Kubernetes)
+├── docs/               WALKTHROUGH.md, RUNBOOK.md
+├── Dockerfile          one image recipe for all five services
+├── docker-compose.yml  the 9-container stack
 └── .github/workflows/ci.yml
 ```
 
 ## Notes
 
-- The dev JWT secret in `application-dev.properties` is for local learning only. The `prod` profile requires `JWT_SECRET`, `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` from the environment.
-- Spring Cloud 2025.1.3 is built for Spring Boot 4.0.x. No release train for Boot 4.1 existed when this was written, and it was verified to run on 4.1.1.
+- The dev JWT secret in `application-dev.properties` is for local learning only. Every other setup takes `JWT_SECRET` and database passwords from the environment or a Kubernetes Secret.
+- Spring Cloud 2025.1.3 is built for Spring Boot 4.0.x. No release train for Boot 4.1 existed when this was written; it was verified to run on 4.1.1.
+- Not done yet (next steps): Keycloak/RS256, transactional outbox, Grafana dashboards, quality and security scanning, load testing, Kubernetes-native discovery. See the end of the walkthrough.
