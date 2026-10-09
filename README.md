@@ -6,6 +6,7 @@ A REST API that grew, step by step, from a single Spring Boot app into a microse
 
 Every push is built and tested, started as 9 Docker containers, and deployed with Helm to a throwaway Kubernetes cluster, where the same end-to-end checks run.
 
+🚀 **[Getting started](docs/GETTING-STARTED.md)**: start everything in order, then create and test data step by step (no Docker needed).
 📖 **[Walkthrough](docs/WALKTHROUGH.md)**: what was built in each of the 8 phases, why, what went wrong, and the numbers measured.
 🛠️ **[Runbook](docs/RUNBOOK.md)**: how to run it 4 ways, how to check every service, and troubleshooting.
 
@@ -60,7 +61,7 @@ Four ways to run it; full steps and checks are in the **[Runbook](docs/RUNBOOK.m
 | Option | Needs | Command | You get |
 | --- | --- | --- | --- |
 | A. One service | JDK 25 | `./mvnw -pl user-service spring-boot:run` | user-service on H2, Swagger at http://localhost:8080/swagger-ui.html |
-| B. All services as jars | JDK 25 | build, then start 6 jars in order ([steps](docs/RUNBOOK.md#option-b--all-services-as-jars-no-docker)) | everything except Kafka |
+| B. All services as jars | JDK 25 | `./mvnw -q package -DskipTests` → `./scripts/start-local.sh` → `./scripts/demo.sh` ([guide](docs/GETTING-STARTED.md)) | everything except Kafka |
 | C. Docker Compose | Docker | `cp .env.example .env` → `docker compose up -d --build --wait` → `./scripts/e2e.sh` | all 9 containers, Kafka on |
 | D. Kubernetes | Docker, kind, Helm | build images → `kind create cluster` → `helm upgrade --install ...` ([steps](docs/RUNBOOK.md#option-d--kubernetes-with-helm)) | the same system on Kubernetes |
 
@@ -81,7 +82,7 @@ From the CI runs (GitHub Actions) and local runs. Details are in the [walkthroug
 | What | Result |
 | --- | --- |
 | N+1 feed vs `JOIN FETCH` | 5 SQL statements → 1 |
-| Circuit breaker with user-service down | first write 1.03 s (timeout), then 13–29 ms fast-fail; reads keep working |
+| Circuit breaker with user-service down | comment writes: first 1.03 s (timeout), then 13–29 ms fast-fail; reads keep working. Gateway: 503 fallback, ~1 s for 3 calls, then 5–8 ms |
 | Kafka clean-up across services | comments removed within 3–4 s of deleting the user |
 | One request traced | api-gateway → comment-service → user-service in a single Zipkin trace |
 | Full stack memory (Compose) | about 2.3 GiB for 9 containers |
@@ -131,8 +132,8 @@ Operational endpoints: `/actuator/health` (+ `/liveness`, `/readiness`), `/actua
 ├── config-server/      Spring Cloud Config Server
 ├── config-repo/        configuration served by config-server
 ├── helm/microservices/ Helm chart for Kubernetes
-├── scripts/e2e.sh      end-to-end checks (Compose and Kubernetes)
-├── docs/               WALKTHROUGH.md, RUNBOOK.md
+├── scripts/            start-local.sh / stop-local.sh, demo.sh (sample data), e2e.sh (CI checks)
+├── docs/               GETTING-STARTED.md, WALKTHROUGH.md, RUNBOOK.md
 ├── Dockerfile          one image recipe for all five services
 ├── docker-compose.yml  the 9-container stack
 └── .github/workflows/ci.yml

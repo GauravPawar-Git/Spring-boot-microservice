@@ -2,6 +2,8 @@
 
 How to start the project in each supported way, how to check that every service is healthy, and how to fix the problems that actually came up while building it.
 
+**First time?** Follow [GETTING-STARTED.md](GETTING-STARTED.md): it walks through starting everything in order and creating test data, with real outputs.
+
 - [Prerequisites](#prerequisites) (and [opening it in IntelliJ](#opening-the-project-in-intellij-idea))
 - [Ports and URLs](#ports-and-urls)
 - [Option A — one service, no setup](#option-a--one-service-no-setup)
@@ -62,6 +64,8 @@ user-service alone with an in-memory H2 database. The quickest way to try the AP
 ## Option B — all services as jars (no Docker)
 
 Six processes, each in its own terminal. Kafka is off in this mode (no broker), everything else works.
+
+**Shortcut**: `./scripts/start-local.sh` does steps 2–3 for you (in order, waiting for health and for the services to find each other), `./scripts/demo.sh` creates and checks sample data, and `./scripts/stop-local.sh` stops everything. The manual steps below show what the script does.
 
 **1. Build all five projects** (once, and after code changes; stop running services first on Windows, see [Troubleshooting](#troubleshooting)):
 

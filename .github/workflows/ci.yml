@@ -91,12 +91,16 @@ jobs:
       - name: End-to-end checks
         run: ./scripts/e2e.sh 2>&1 | tee e2e.log
 
+      - name: Demo data walkthrough (scripts/demo.sh, Kafka on)
+        run: ./scripts/demo.sh 2>&1 | tee demo.log
+
       - name: Report results
         if: always()
         run: |
           [ -s e2e.log ] && echo "::notice title=e2e results::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' e2e.log)"
+          [ -s demo.log ] && echo "::notice title=demo results::$(grep -E 'OK|FAIL|info|finished' demo.log | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')"
           echo "::notice title=containers::$(docker compose ps -a --format '{{.Service}}: {{.Status}}' | sed ':a;N;$!ba;s/\n/%0A/g')"
-          echo "::notice title=image sizes::$(docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep -E 'first-project|zipkin|kafka|postgres' | sed ':a;N;$!ba;s/\n/%0A/g')"
+          echo "::notice title=image sizes::$(docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep -E 'service|gateway|server|zipkin|kafka|postgres' | sed ':a;N;$!ba;s/\n/%0A/g')"
           echo "::notice title=memory::$(docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' | sed ':a;N;$!ba;s/\n/%0A/g')"
 
       - name: Logs on failure

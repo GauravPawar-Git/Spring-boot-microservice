@@ -183,6 +183,14 @@ All numbers come from real runs: local runs, or GitHub Actions jobs (the CI anno
 - The leftover `HELP.md` was deleted.
 - The Java package name `com.practice.first_project` was kept: renaming it would touch every file for no functional gain.
 
+**api-gateway completed**: it was the thinnest module, with one class, no tests, and no answer for a dead service (the Phase 5 gap: a plain 500 after 2 s).
+- Each route now has a `CircuitBreaker` filter with `fallbackUri=forward:/fallback/<service>`. `FallbackController` answers `503 "<service> is unavailable"` in the same JSON shape as the services.
+- Tuned settings: a 1 s connect timeout, a breaker that opens after 3 calls (Resilience4j's default needs 100), and a 10 s time limiter so a slow-but-healthy call (cold JVM, BCrypt) isn't cut off.
+- **Measured** with user-service stopped: calls 1–3 got the 503 after ~1.0 s each (the connect timeout); calls 4–6 got it in **5–8 ms** (breaker open).
+- `ApiGatewayApplicationTest` (4 tests) checks the route table, the fallback for GET and POST, and health, with no backend running. discovery-server got a test too. Its test turns the Eureka client back on, because the parent pom disables it for every module and the Eureka *server* needs it.
+
+**Local run scripts**: `scripts/start-local.sh` starts the services in dependency order and waits until the whole chain works; `scripts/demo.sh` creates and checks sample data; `scripts/stop-local.sh` stops everything. The first version of the start script declared "ready" on a `200` from `/comments`, but comment-service answers 200 *with* `postDetailsAvailable:false` while it can't reach user-service yet, and the demo then failed with 503s. "Ready" now means `postDetailsAvailable:true` through the gateway: the full chain gateway → comment-service → user-service. The demo also stopped reporting a Kafka clean-up for comments that never existed.
+
 ---
 
 ## What is not done yet

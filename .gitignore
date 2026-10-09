@@ -34,3 +34,6 @@ build/
 
 ### Docker secrets ###
 .env
+
+### Local run logs (scripts/start-local.sh) ###
+.run/

@@ -33,6 +33,17 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-zipkin</artifactId>
         </dependency>
+        <!-- per-route circuit breaker + fallback: a down service gives a fast, clear 503 instead of a 500 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
