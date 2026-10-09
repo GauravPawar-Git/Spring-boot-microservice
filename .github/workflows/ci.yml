@@ -81,6 +81,18 @@ jobs:
       - name: Build all images
         run: docker compose build 2>&1 | tee build.log
 
+      # docker compose pulls in parallel, and anonymous pulls from ECR Public are rate-limited
+      # ("toomanyrequests: Rate exceeded" on the first run). Pull one by one, retrying with backoff.
+      - name: Pull infrastructure images
+        run: |
+          for image in $(docker compose config --images | grep -v '^spring-boot-microservice-' | sort -u); do
+            for attempt in 1 2 3 4 5; do
+              docker pull -q "$image" && break
+              [ "$attempt" = 5 ] && exit 1
+              echo "pull of $image failed, retrying in $((attempt * 5))s"; sleep $((attempt * 5))
+            done
+          done 2>&1 | tee pull.log
+
       - name: Start the stack and wait until every container is healthy
         run: docker compose up -d --wait --wait-timeout 300 2>&1 | tee up.log
 
@@ -98,7 +110,7 @@ jobs:
       - name: Logs on failure
         if: failure()
         run: |
-          for f in build.log up.log; do
+          for f in build.log pull.log up.log; do
             [ -s "$f" ] && echo "::error title=$f (last 30 lines)::$(tail -30 "$f" | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')"
           done
           # last lines of every container that is not healthy
