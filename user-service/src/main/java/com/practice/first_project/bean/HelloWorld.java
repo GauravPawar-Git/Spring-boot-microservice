@@ -1,5 +1,6 @@
 package com.practice.first_project.bean;
 
+// Returned by HelloWorldController; Jackson turns getMessage() into {"message":"..."}
 public class HelloWorld {
 
     String message;

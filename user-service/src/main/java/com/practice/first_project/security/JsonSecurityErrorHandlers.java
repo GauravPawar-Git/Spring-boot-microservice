@@ -17,6 +17,12 @@ import java.io.IOException;
 /**
  * Security errors happen in the filter chain, BEFORE any controller runs, so @RestControllerAdvice
  * never sees them. These two handlers write the same ErrorDetails JSON the rest of the API uses.
+ *
+ *   registered in: SecurityConfig.securityFilterChain() -> exceptionHandling(authenticationEntryPoint / accessDeniedHandler)
+ *   commence()   : called by Spring Security when a protected URL is hit without a valid token (401);
+ *                  reads the reason left by JwtAuthenticationFilter (JWT_ERROR_ATTRIBUTE)
+ *   handle()     : called when a URL rule denies a logged-in user (403). @PreAuthorize denials go to
+ *                  ErrorResponseHandler.handleAccessDenied() instead.
  */
 @Component
 public class JsonSecurityErrorHandlers implements AuthenticationEntryPoint, AccessDeniedHandler {

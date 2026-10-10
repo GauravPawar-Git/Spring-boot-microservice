@@ -5,6 +5,10 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Plain Java practice (streams, bubble sort, selection sort), unrelated to the Spring app.
+ * Nothing calls it; run its main() directly from the IDE.
+ */
 public class FunctionPractice {
     public static void main(String args[]) {
 

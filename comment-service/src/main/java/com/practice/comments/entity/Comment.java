@@ -12,6 +12,11 @@ import java.time.LocalDateTime;
 /**
  * postId and authorId are plain numbers, not @ManyToOne relations: posts and users live in
  * user-service's database. authorUsername is copied in at write time so reads don't need another call.
+ *
+ *   table     : "comment" in comment-service's own database (Flyway V1__create_comment.sql)
+ *   created in: CommentService.addComment(), after PostLookup.findPost() confirmed the post exists
+ *   deleted by: CommentService.deleteComment() (DELETE /comments/{id}) and, when the post is deleted in
+ *               user-service, by PostsDeletedListener (Kafka) -> CommentService.deleteCommentsOfPosts()
  */
 @Entity
 @Table(name = "comment")

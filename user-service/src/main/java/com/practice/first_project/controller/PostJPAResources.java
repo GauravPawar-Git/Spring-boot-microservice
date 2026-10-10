@@ -13,6 +13,15 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.net.URI;
 import java.util.List;
 
+/**
+ * Posts endpoints. Thin, like UserJPAResources: HTTP in, PostService call, HTTP out.
+ *
+ *   requests arrive from: api-gateway route "user-service" (Path=/jpa/**), and from comment-service:
+ *                         UserServiceClient.getPost() (Feign) calls GET /jpa/posts/{id} to check a post exists
+ *   security            : GET feed/post/user-posts are public (SecurityConfig); creating needs a token and
+ *                         @PreAuthorize "ADMIN or yourself" (principal = AppUserPrincipal from JwtAuthenticationFilter)
+ *   calls               : PostService
+ */
 @RestController
 @RequestMapping("/jpa")
 public class PostJPAResources {
@@ -47,6 +56,8 @@ public class PostJPAResources {
         return postService.createPosts(userId, requests);
     }
 
+    // Also called service-to-service by comment-service (UserServiceClient.getPost via PostLookup):
+    // its JSON is read there as PostSummary. Cached in PostService.getPost().
     @GetMapping("/posts/{id}")
     public PostResponse getPost(@PathVariable int id) {
         return postService.getPost(id);

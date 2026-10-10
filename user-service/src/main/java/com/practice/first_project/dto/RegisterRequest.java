@@ -8,6 +8,10 @@ import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 
+/**
+ * Body of POST /auth/register: AuthController.register() -> AuthService.register().
+ * Like UserRequest plus login fields. Invalid fields -> 400 listing each error (ErrorResponseHandler).
+ */
 public record RegisterRequest(
 
         @NotBlank(message = "Name is required")

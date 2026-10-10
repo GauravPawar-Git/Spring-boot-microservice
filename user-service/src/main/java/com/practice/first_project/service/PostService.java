@@ -17,6 +17,18 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Posts: create, list, the N+1 demo, and the transaction (all-or-nothing) demo.
+ *
+ *   called by: PostJPAResources (all /jpa/posts and /jpa/users/{id}/posts endpoints)
+ *              getPost() is also reached from comment-service: UserServiceClient.getPost() (Feign)
+ *              -> GET /jpa/posts/{id} -> PostJPAResources.getPost() -> here
+ *   calls    : PostRepository, UserRepositories
+ *   cache    : "posts" (Caffeine, enabled by CacheConfig, size/TTL in application.properties);
+ *              emptied by UserService.updateUser() / deleteUser() (@CacheEvict)
+ *   errors   : PostNotFoundException -> 404, UserNotFoundException -> 404,
+ *              PostLimitExceededException -> 409   (all mapped in ErrorResponseHandler)
+ */
 @Service
 @Transactional(readOnly = true)
 public class PostService {

@@ -13,6 +13,11 @@ import java.util.List;
  * The logged-in user as Spring Security sees it. It is what `authentication.principal` returns,
  * so @PreAuthorize expressions can use principal.id.
  * password is only filled during login; when built from a JWT it is null (the token already proved identity).
+ *
+ *   built by  : AppUserDetailsService.loadUserByUsername() (login, from the User entity)
+ *               JwtService.parseToken() (every authenticated request, from the token's claims)
+ *   used by   : AuthService.login() -> JwtService.generateToken(); AuthController.me() via @AuthenticationPrincipal;
+ *               @PreAuthorize("... #id == principal.id") in UserJPAResources and PostJPAResources
  */
 public record AppUserPrincipal(Integer id, String username, String password, Role role) implements UserDetails {
 

@@ -5,6 +5,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Phase 0 warm-up endpoints (first Spring Boot app). Not used by any other class.
+ * Not routed by api-gateway (only /auth/** and /jpa/** are), so call them on port 8080 with a token:
+ * SecurityConfig's anyRequest().authenticated() applies. Returns HelloWorld (bean package) as JSON.
+ */
 @RestController
 public class HelloWorldController {
 

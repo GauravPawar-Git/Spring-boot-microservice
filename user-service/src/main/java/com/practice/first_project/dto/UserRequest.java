@@ -10,6 +10,7 @@ import java.time.LocalDate;
 /**
  * What a client sends to create or update a user.
  * No id here: the database generates it, so a client cannot choose or overwrite one.
+ * Used by UserJPAResources.createUser() / updateUser() -> UserService. @Valid failures -> 400 (ErrorResponseHandler).
  */
 public record UserRequest(
 

@@ -15,6 +15,11 @@ import java.util.Map;
  * When a service is down, has no registered instance, or doesn't answer in time, clients get an
  * immediate 503 in the same JSON shape the services use, instead of a 500 after a timeout.
  * @RequestMapping (all methods): the forward keeps the original method, e.g. POST /comments.
+ *
+ *   called by: the gateway itself, never by a client directly. application.properties:
+ *              routes[0] (user-service)    ...filters[0].args.fallbackUri=forward:/fallback/user-service
+ *              routes[1] (comment-service) ...filters[0].args.fallbackUri=forward:/fallback/comment-service
+ *   test     : ApiGatewayApplicationTest
  */
 @RestController
 public class FallbackController {

@@ -17,6 +17,16 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Turns exceptions thrown by CommentController / CommentService into JSON (ErrorDetails), like user-service's
+ * handler of the same name. Spring MVC picks the method by exception type; nobody calls them directly.
+ *   NotFoundException               CommentService (post or comment missing)         -> 404
+ *   BannedWordException             CommentService.addComment() via CommentRules     -> 400
+ *   UserServiceUnavailableException PostLookup.findPost() fallback                   -> 503
+ *   AccessDeniedException           CommentService.deleteComment() (not the author)  -> 403
+ *   @Valid failures                 CommentRequest                                   -> 400
+ * Exceptions in the Kafka listener do NOT come here (no HTTP request); Spring Kafka logs and retries them.
+ */
 @RestControllerAdvice
 public class ErrorResponseHandler extends ResponseEntityExceptionHandler {
 

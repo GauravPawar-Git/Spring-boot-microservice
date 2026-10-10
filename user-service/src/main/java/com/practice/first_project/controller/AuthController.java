@@ -12,6 +12,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * Public login/register endpoints (permitAll in SecurityConfig), plus /auth/me.
+ *
+ *   requests arrive from: api-gateway route "user-service" (Path=/auth/**)
+ *   calls               : AuthService.register() / AuthService.login(), UserService.getUserById()
+ *   the token from login is sent back as "Authorization: Bearer <token>" on later requests and checked by
+ *   JwtAuthenticationFilter here, and by the OAuth2 resource server in comment-service.
+ */
 @RestController
 @RequestMapping("/auth")
 public class AuthController {

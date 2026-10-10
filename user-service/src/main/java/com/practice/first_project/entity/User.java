@@ -19,6 +19,10 @@ import java.util.List;
  * JPA entity = how a user is stored in the database.
  * It is NOT sent to clients directly; see UserRequest / UserResponse in the dto package.
  * Validation rules live on the DTO (the API contract), not here.
+ *
+ *   table     : "user_details" (Flyway V1__create_user_details.sql, login columns added by V4__add_credentials.sql)
+ *   created in: UserService.createUser() (no login), AuthService.register() (with login)
+ *   read by   : UserService, PostService, AppUserDetailsService -> AppUserPrincipal.from()
  */
 @Entity
 @Table(name = "user_details")

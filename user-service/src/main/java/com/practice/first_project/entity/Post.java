@@ -14,6 +14,11 @@ import java.time.LocalDateTime;
 
 /**
  * The "many" side of User 1 --- * Post. It owns the relationship: the foreign key column user_id is in this table.
+ *
+ *   table     : "post", created by Flyway V2__create_post.sql (Hibernate only validates it)
+ *   created in: PostService.createPost() / createPosts(), attached with User.addPost()
+ *   sent out  : as PostResponse.from(post), never directly
+ * comment-service refers to a post only by its id (Comment.postId); it never sees this class.
  */
 @Entity
 @Table(name = "post")

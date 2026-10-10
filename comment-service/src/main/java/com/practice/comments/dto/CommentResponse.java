@@ -4,6 +4,8 @@ import com.practice.comments.entity.Comment;
 
 import java.time.LocalDateTime;
 
+// One comment as JSON. Built with CommentResponse.from() in CommentService; returned by POST /comments
+// and inside PostComments for GET /comments?postId=.
 public record CommentResponse(Integer id, Integer postId, Integer authorId, String authorUsername,
                               String text, LocalDateTime createdAt) {
 

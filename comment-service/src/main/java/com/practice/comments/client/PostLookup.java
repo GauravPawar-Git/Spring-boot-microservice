@@ -16,6 +16,12 @@ import java.util.Optional;
  * - 404 from upstream -> Optional.empty()      (a normal answer, NOT counted as a failure)
  * - down / slow / 5xx -> fallback runs          (counted; enough of them OPEN the circuit)
  * - circuit OPEN      -> fallback runs at once  (no network call at all)
+ *
+ *   called by : CommentService.addComment() -> findPost();  CommentService.getCommentsOfPost() -> findPostOrEmpty()
+ *   calls     : UserServiceClient.getPost() (Feign -> user-service GET /jpa/posts/{id})
+ *   breaker   : "user-service", settings resilience4j.circuitbreaker.instances.user-service.* in application.properties,
+ *               state changes logged by CircuitBreakerConfig.logStateTransitions()
+ *   test      : PostLookupCircuitBreakerTest
  */
 @Component
 public class PostLookup {
@@ -34,6 +40,7 @@ public class PostLookup {
     public Optional<PostSummary> findPost(int postId) {
         return circuitBreaker.run(() -> fetch(postId), throwable -> {
             log.warn("user-service call failed for post {}: {}", postId, throwable.toString());
+            // ErrorResponseHandler.handleUnavailable() turns this into a 503 for the client
             throw new UserServiceUnavailableException();
         });
     }
@@ -50,6 +57,7 @@ public class PostLookup {
         try {
             return Optional.of(client.getPost(postId));
         } catch (FeignException.NotFound notFound) {
+            // user-service answered 404 (PostNotFoundException there): the post doesn't exist, the service is fine
             return Optional.empty();
         }
     }

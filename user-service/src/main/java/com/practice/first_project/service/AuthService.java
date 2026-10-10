@@ -16,6 +16,17 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Registration and login.
+ *
+ *   called by: AuthController.register() (POST /auth/register), AuthController.login() (POST /auth/login)
+ *   login flow: authenticationManager.authenticate()
+ *                 -> AppUserDetailsService.loadUserByUsername() loads the user from the database
+ *                 -> BCrypt (PasswordEncoder bean in SecurityConfig) compares the password with the hash
+ *               -> JwtService.generateToken() builds the JWT returned to the client
+ *   the token is then checked on every later request by JwtAuthenticationFilter (this service) and by
+ *   comment-service's SecurityConfig.jwtDecoder() (same secret).
+ */
 @Service
 public class AuthService {
 

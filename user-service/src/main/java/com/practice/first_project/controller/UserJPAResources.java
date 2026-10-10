@@ -18,6 +18,12 @@ import java.net.URI;
 /**
  * Thin controller: read the HTTP request, call the service, build the HTTP response.
  * No business logic and no repository access here.
+ *
+ *   requests arrive from: api-gateway route "user-service" (Path=/jpa/**) or directly on port 8080
+ *   before this runs     : JwtAuthenticationFilter reads the token, SecurityConfig checks the URL rules,
+ *                          then @PreAuthorize below checks the role / "is it you?"
+ *   calls                : UserService
+ *   request/response     : UserRequest in, UserResponse out (never the User entity)
  */
 @RestController
 @RequestMapping("/jpa/users")
@@ -60,7 +66,9 @@ public class UserJPAResources {
         return userService.updateUser(id, request);
     }
 
-    // 204 No Content: success, nothing to return
+    // 204 No Content: success, nothing to return.
+    // Side effect: UserService.deleteUser() also sends a "posts-deleted" Kafka message, so comment-service
+    // (PostsDeletedListener) removes the comments of this user's posts.
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteUserById(@PathVariable int id) {

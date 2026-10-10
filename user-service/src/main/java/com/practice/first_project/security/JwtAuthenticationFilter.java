@@ -22,6 +22,12 @@ import java.io.IOException;
  *
  * Deliberately NOT a @Component: Spring Boot registers every Filter bean with the servlet container too,
  * so it would run twice (once outside the security chain). SecurityConfig creates it with `new`.
+ *
+ *   created in: SecurityConfig.securityFilterChain()  (addFilterBefore UsernamePasswordAuthenticationFilter)
+ *   calls     : JwtService.parseToken()  (the token was made by JwtService.generateToken() at login)
+ *   result    : the AppUserPrincipal is what controllers get via @AuthenticationPrincipal
+ *               and what @PreAuthorize sees as "principal"
+ *   bad token : JWT_ERROR_ATTRIBUTE is read by JsonSecurityErrorHandlers.commence() for the 401 message
  */
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 

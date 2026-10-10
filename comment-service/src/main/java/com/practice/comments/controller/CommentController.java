@@ -13,6 +13,15 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
 
+/**
+ * Comment endpoints.
+ *
+ *   requests arrive from: api-gateway route "comment-service" (Path=/comments/**) or directly on port 8082
+ *   security            : SecurityConfig: GET is public; POST/DELETE need a JWT issued by user-service.
+ *                         The verified token arrives as @AuthenticationPrincipal Jwt (claims "sub", "uid", "role").
+ *   calls               : CommentService
+ *   errors              : thrown in CommentService, turned into JSON by ErrorResponseHandler
+ */
 @RestController
 @RequestMapping("/comments")
 public class CommentController {
@@ -45,7 +54,7 @@ public class CommentController {
         return ResponseEntity.noContent().build();
     }
 
-    // JSON numbers in JWT claims are decoded as Long
+    // "uid" is written by user-service's JwtService.generateToken(). JSON numbers in JWT claims are decoded as Long
     private static int userId(Jwt jwt) {
         return ((Number) jwt.getClaim("uid")).intValue();
     }

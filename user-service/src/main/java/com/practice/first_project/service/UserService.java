@@ -19,6 +19,11 @@ import java.util.List;
 /**
  * Business logic lives here, not in the controller.
  * The controller handles HTTP; the repository handles the database; the service connects them.
+ *
+ *   called by: UserJPAResources (all /jpa/users endpoints), AuthController.me() -> getUserById()
+ *   calls    : UserRepositories (database), ApplicationEventPublisher (deleteUser -> PostsDeletedEvent)
+ *   errors   : UserNotFoundException -> ErrorResponseHandler.handleUserNotFoundException() -> 404
+ * Registering a user WITH a login is not here: see AuthService.register().
  */
 @Service
 @Transactional(readOnly = true) // default for every method; write methods override it below
@@ -58,10 +63,14 @@ public class UserService {
         return UserResponse.from(user);
     }
 
+    // Called by UserJPAResources.deleteUserById() (DELETE /jpa/users/{id}, ADMIN only).
+    // Starts the Kafka chain: publishEvent -> KafkaEventPublisher.onPostsDeleted() -> topic "posts-deleted"
+    // -> comment-service PostsDeletedListener.onPostsDeleted() deletes the comments of these posts.
     @Transactional
     @CacheEvict(cacheNames = "posts", allEntries = true) // the user's posts are deleted too (cascade)
     public void deleteUser(int id) {
         User user = findUserOrThrow(id);
+        // collect the ids BEFORE deleting: afterwards the posts are gone (User.posts has cascade ALL)
         List<Integer> postIds = user.getPosts().stream().map(Post::getId).toList();
         userRepositories.delete(user);
         if (!postIds.isEmpty()) {

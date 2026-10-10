@@ -9,6 +9,11 @@ import java.util.List;
  * app.comments.* settings. A mutable class with setters on purpose: on POST /actuator/refresh,
  * Spring Cloud re-binds @ConfigurationProperties beans in place, which needs setters
  * (an immutable record would keep its old values until restart).
+ *
+ *   values from: config-server -> config-repo/comment-service.properties (app.comments.banned-words=spam,scam),
+ *                falling back to this service's application.properties if config-server is down
+ *   registered : @ConfigurationPropertiesScan on CommentServiceApplication
+ *   used by    : CommentService.addComment() -> findBannedWord(); a hit -> BannedWordException -> 400
  */
 @ConfigurationProperties(prefix = "app.comments")
 public class CommentRules {

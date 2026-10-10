@@ -18,6 +18,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Comment business logic.
+ *
+ *   called by: CommentController (getCommentsOfPost, addComment, deleteComment)
+ *              PostsDeletedListener.onPostsDeleted() (Kafka, deleteCommentsOfPosts)
+ *   calls    : CommentRepository (own database), PostLookup (user-service via Feign + circuit breaker),
+ *              CommentRules (banned words from config-server)
+ *   errors   : BannedWordException 400, NotFoundException 404, UserServiceUnavailableException 503,
+ *              AccessDeniedException 403   (all mapped in ErrorResponseHandler)
+ *   metrics  : comments_saved_total, comments_rejected_total at /actuator/prometheus
+ */
 @Service
 public class CommentService {
 
@@ -83,7 +94,8 @@ public class CommentService {
         commentRepository.delete(comment);
     }
 
-    // Called by the Kafka listener when user-service deleted posts: our copies would be orphans
+    // Called by the Kafka listener (PostsDeletedListener.onPostsDeleted) when user-service deleted posts
+    // (UserService.deleteUser -> KafkaEventPublisher -> topic "posts-deleted"): our comments would be orphans
     @Transactional
     public long deleteCommentsOfPosts(List<Integer> postIds) {
         return commentRepository.deleteByPostIdIn(postIds);

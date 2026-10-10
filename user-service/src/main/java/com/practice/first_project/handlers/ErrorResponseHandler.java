@@ -24,6 +24,17 @@ import java.util.List;
  * One place that turns exceptions into HTTP responses, for every controller.
  * The parent class (ResponseEntityExceptionHandler) already handles Spring MVC's own exceptions
  * (bad JSON, wrong HTTP method, missing parameter...) with the right 4xx status.
+ *
+ * Nobody calls these methods: when a controller (or the service it calls) throws, Spring MVC looks for the
+ * @ExceptionHandler matching the exception type and uses its return value as the response.
+ *   UserNotFoundException      thrown by UserService / PostService            -> 404
+ *   PostNotFoundException      thrown by PostService.getPost()                -> 404 (comment-service's Feign client sees it as FeignException.NotFound)
+ *   PostLimitExceededException thrown by PostService.createPost(s)()          -> 409
+ *   UsernameTakenException     thrown by AuthService.register()               -> 409
+ *   AuthenticationException    thrown by AuthService.login() (wrong password) -> 401
+ *   AccessDeniedException      thrown by @PreAuthorize                        -> 403
+ *   @Valid failures            DTOs in the dto package                        -> 400
+ * Errors in the security filters (no/bad token) never reach here: see JsonSecurityErrorHandlers.
  */
 @RestControllerAdvice
 public class ErrorResponseHandler extends ResponseEntityExceptionHandler {

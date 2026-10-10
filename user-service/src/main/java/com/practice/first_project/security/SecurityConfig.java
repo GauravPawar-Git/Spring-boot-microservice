@@ -21,6 +21,15 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+/**
+ * Security setup of user-service. Order of checks for every request:
+ *   1. JwtAuthenticationFilter.doFilterInternal()  token -> AppUserPrincipal in the SecurityContext
+ *   2. authorizeHttpRequests rules below           public URL? logged in?  (fail -> JsonSecurityErrorHandlers: 401/403)
+ *   3. @PreAuthorize on controller methods          role / ownership        (fail -> ErrorResponseHandler.handleAccessDenied: 403)
+ * Beans defined here are used by: AuthService (PasswordEncoder, AuthenticationManager),
+ * AppUserDetailsService (picked up by the AuthenticationManager), JwtService (JwtProperties).
+ * comment-service has its own SecurityConfig that trusts the same tokens.
+ */
 @Configuration
 @EnableMethodSecurity // turns on @PreAuthorize on controller/service methods
 @EnableConfigurationProperties(JwtProperties.class)

@@ -9,6 +9,8 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Adds an "Authorize" button to Swagger UI: paste the accessToken from /auth/login once,
  * and Swagger sends "Authorization: Bearer <token>" on every request.
+ * Read by springdoc (dependency springdoc-openapi-starter-webmvc-ui) when it builds /v3/api-docs and
+ * /swagger-ui.html; no class of ours calls it. SecurityConfig makes those URLs public.
  */
 @Configuration
 @OpenAPIDefinition(security = @SecurityRequirement(name = "bearerAuth"))

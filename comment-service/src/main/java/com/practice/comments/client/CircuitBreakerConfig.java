@@ -10,6 +10,12 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.concurrent.Executors;
 
+/**
+ * Extra setup for the Resilience4j circuit breakers created by PostLookup's constructor
+ * (circuitBreakerFactory.create("user-service")). Spring Cloud applies every Customizer bean below to the
+ * Resilience4JCircuitBreakerFactory before PostLookup gets it; nothing calls these methods by name.
+ * Thresholds (window size, failure rate, open time) are in application.properties, not here.
+ */
 @Configuration
 public class CircuitBreakerConfig {
 

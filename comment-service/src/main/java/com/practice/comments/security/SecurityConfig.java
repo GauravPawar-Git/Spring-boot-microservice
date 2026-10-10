@@ -21,6 +21,11 @@ import java.util.Base64;
  * Unlike user-service (hand-written JwtAuthenticationFilter), this service uses Spring Security's
  * built-in OAuth2 Resource Server: BearerTokenAuthenticationFilter reads the header and our JwtDecoder
  * verifies it. Same tokens, same secret, a fraction of the code.
+ *
+ *   tokens come from : user-service AuthService.login() -> JwtService.generateToken() (claims sub, uid, role)
+ *   secret           : app.jwt.secret in application.properties (JWT_SECRET env var); must equal user-service's
+ *   verified token   : reaches CommentController as @AuthenticationPrincipal Jwt
+ *   no / bad token   : Spring answers 401 itself (no JSON body, unlike user-service's JsonSecurityErrorHandlers)
  */
 @Configuration
 public class SecurityConfig {

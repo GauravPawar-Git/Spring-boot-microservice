@@ -17,6 +17,12 @@ import java.util.Date;
  * Creates and verifies JSON Web Tokens signed with HMAC-SHA256 (HS256).
  * A JWT is header.payload.signature, each part Base64URL-encoded. The payload is readable by anyone;
  * the signature only proves nobody changed it. Never put secrets in a token.
+ *
+ *   generateToken() called by: AuthService.login()
+ *   parseToken()    called by: JwtAuthenticationFilter.doFilterInternal() on every request with a Bearer header
+ *   settings        : JwtProperties (app.jwt.secret, app.jwt.expiration)
+ * comment-service verifies the same tokens without this class: its SecurityConfig.jwtDecoder() uses the same
+ * secret, and reads the "uid" and "role" claims written here (CommentController.userId(), jwtAuthenticationConverter()).
  */
 @Service
 public class JwtService {
