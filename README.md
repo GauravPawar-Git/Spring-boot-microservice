@@ -61,7 +61,7 @@ Four ways to run it; full steps and checks are in the **[Runbook](docs/RUNBOOK.m
 | Option | Needs | Command | You get |
 | --- | --- | --- | --- |
 | A. One service | JDK 25 | `./mvnw -pl user-service spring-boot:run` | user-service on H2, Swagger at http://localhost:8080/swagger-ui.html |
-| B. All services as jars | JDK 25 | `./mvnw -q package -DskipTests` → `./scripts/start-local.sh` → `./scripts/demo.sh` ([guide](docs/GETTING-STARTED.md)) | everything except Kafka |
+| B. All services as jars | JDK 25 | `./mvnw -q package -DskipTests` → `./scripts/start-local.sh` → `./scripts/seed-data.sh` / `./scripts/demo.sh` ([guide](docs/GETTING-STARTED.md)) | everything except Kafka |
 | C. Docker Compose | Docker | `cp .env.example .env` → `docker compose up -d --build --wait` → `./scripts/e2e.sh` | all 9 containers, Kafka on |
 | D. Kubernetes | Docker, kind, Helm | build images → `kind create cluster` → `helm upgrade --install ...` ([steps](docs/RUNBOOK.md#option-d--kubernetes-with-helm)) | the same system on Kubernetes |
 
@@ -132,8 +132,8 @@ Operational endpoints: `/actuator/health` (+ `/liveness`, `/readiness`), `/actua
 ├── config-server/      Spring Cloud Config Server
 ├── config-repo/        configuration served by config-server
 ├── helm/microservices/ Helm chart for Kubernetes
-├── scripts/            start-local.sh / stop-local.sh, demo.sh (sample data), e2e.sh (CI checks)
-├── docs/               GETTING-STARTED.md, WALKTHROUGH.md, RUNBOOK.md
+├── scripts/            start-local.sh / stop-local.sh, seed-data.sh (sample data), demo.sh (feature checks), e2e.sh (CI checks)
+├── docs/               GETTING-STARTED.md, api-requests.http (sample bodies), WALKTHROUGH.md, RUNBOOK.md
 ├── Dockerfile          one image recipe for all five services
 ├── docker-compose.yml  the 9-container stack
 └── .github/workflows/ci.yml

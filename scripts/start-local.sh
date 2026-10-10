@@ -69,7 +69,8 @@ for _ in $(seq 1 40); do
     echo
     echo "All services are up. Entry point: http://localhost:8765"
     echo "  Eureka:  http://localhost:8761     Swagger (user-service): http://localhost:8080/swagger-ui.html"
-    echo "  Next:    ./scripts/demo.sh          creates and checks sample data"
+    echo "  Next:    ./scripts/seed-data.sh     creates sample users, posts and comments (kept)"
+    echo "           ./scripts/demo.sh          tests every feature step by step"
     exit 0
   fi
   sleep 3

@@ -1,0 +1,173 @@
+### Sample requests for every endpoint, through the gateway.
+### IntelliJ IDEA: open this file and click the green ▶ next to a request (run them top to bottom the first time:
+### the login requests save tokens and the create requests save ids for the requests below them).
+### Start the services first: ./scripts/start-local.sh  (see docs/GETTING-STARTED.md)
+
+@gw = http://localhost:8765
+
+### ---------- Auth (user-service) ----------
+
+### Log in as the seeded ADMIN -> saves {{admin}}
+POST {{gw}}/auth/login
+Content-Type: application/json
+
+{"username": "rambo", "password": "password123"}
+
+> {% client.global.set("admin", response.body.accessToken); %}
+
+### Log in as a seeded USER -> saves {{vigo}}
+POST {{gw}}/auth/login
+Content-Type: application/json
+
+{"username": "vigo", "password": "password123"}
+
+> {% client.global.set("vigo", response.body.accessToken); %}
+
+### Register your own user (201). Change the username if it's taken (409). -> saves {{myId}}
+POST {{gw}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Gaurav Pawar",
+  "birthDate": "1998-04-12",
+  "username": "gaurav",
+  "password": "my-password-1"
+}
+
+> {% client.global.set("myId", response.body.id); %}
+
+### Log in as yourself -> saves {{me}}
+POST {{gw}}/auth/login
+Content-Type: application/json
+
+{"username": "gaurav", "password": "my-password-1"}
+
+> {% client.global.set("me", response.body.accessToken); %}
+
+### Who am I?
+GET {{gw}}/auth/me
+Authorization: Bearer {{me}}
+
+### ---------- Users (user-service) ----------
+
+### All users, paged and sorted (login required)
+GET {{gw}}/jpa/users?page=0&size=5&sort=name,asc
+Authorization: Bearer {{me}}
+
+### One user
+GET {{gw}}/jpa/users/{{myId}}
+Authorization: Bearer {{me}}
+
+### Update yourself (or anyone, as ADMIN)
+PUT {{gw}}/jpa/users/{{myId}}
+Authorization: Bearer {{me}}
+Content-Type: application/json
+
+{"name": "Gaurav B. Pawar", "birthDate": "1998-04-12"}
+
+### ADMIN creates a user without a login (a USER token gets 403)
+POST {{gw}}/jpa/users
+Authorization: Bearer {{admin}}
+Content-Type: application/json
+
+{"name": "Guest Author", "birthDate": "1988-01-01"}
+
+### ---------- Posts (user-service) ----------
+
+### Create a post as yourself -> saves {{postId}}
+POST {{gw}}/jpa/users/{{myId}}/posts
+Authorization: Bearer {{me}}
+Content-Type: application/json
+
+{"description": "Learning microservices with Spring Boot"}
+
+> {% client.global.set("postId", response.body.id); %}
+
+### Create several posts in one transaction (all or nothing; max 10 posts per user -> 409)
+POST {{gw}}/jpa/users/{{myId}}/posts/bulk
+Authorization: Bearer {{me}}
+Content-Type: application/json
+
+[
+  {"description": "Spring Data JPA derived queries"},
+  {"description": "How @Transactional rollback works"}
+]
+
+### Posts of one user (public)
+GET {{gw}}/jpa/users/{{myId}}/posts
+
+### One post (public, cached for 60 s)
+GET {{gw}}/jpa/posts/{{postId}}
+
+### Feed of all posts (public, one JOIN FETCH query)
+GET {{gw}}/jpa/posts
+
+### Same feed the slow way: watch user-service's log print 1 + N SELECTs (login required)
+GET {{gw}}/jpa/posts/n-plus-one
+Authorization: Bearer {{me}}
+
+### ---------- Comments (comment-service) ----------
+
+### Comment on your post (comment-service asks user-service whether the post exists) -> saves {{commentId}}
+POST {{gw}}/comments
+Authorization: Bearer {{vigo}}
+Content-Type: application/json
+
+{"postId": {{postId}}, "text": "Great post!"}
+
+> {% client.global.set("commentId", response.body.id); %}
+
+### Reply
+POST {{gw}}/comments
+Authorization: Bearer {{me}}
+Content-Type: application/json
+
+{"postId": {{postId}}, "text": "Thanks for reading!"}
+
+### Comments of a post, with the post's details from user-service (public)
+GET {{gw}}/comments?postId={{postId}}
+
+### Delete a comment: only its author or an ADMIN (204); anyone else gets 403
+DELETE {{gw}}/comments/{{commentId}}
+Authorization: Bearer {{vigo}}
+
+### ---------- Errors on purpose ----------
+
+### 400: banned word (rule comes from config-server)
+POST {{gw}}/comments
+Authorization: Bearer {{vigo}}
+Content-Type: application/json
+
+{"postId": {{postId}}, "text": "easy scam money"}
+
+### 404: post doesn't exist
+POST {{gw}}/comments
+Authorization: Bearer {{vigo}}
+Content-Type: application/json
+
+{"postId": 999999, "text": "hello?"}
+
+### 400: validation errors listed per field
+POST {{gw}}/auth/register
+Content-Type: application/json
+
+{"name": "A", "birthDate": "2999-01-01", "username": "Bad Name!", "password": "short"}
+
+### 401: no token
+POST {{gw}}/jpa/users/{{myId}}/posts
+Content-Type: application/json
+
+{"description": "no token"}
+
+### 403: posting as someone else
+POST {{gw}}/jpa/users/1/posts
+Authorization: Bearer {{me}}
+Content-Type: application/json
+
+{"description": "posting as rambo"}
+
+### ---------- Clean up ----------
+
+### ADMIN deletes your user: your posts go too (204)
+DELETE {{gw}}/jpa/users/{{myId}}
+Authorization: Bearer {{admin}}

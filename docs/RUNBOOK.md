@@ -65,7 +65,7 @@ user-service alone with an in-memory H2 database. The quickest way to try the AP
 
 Six processes, each in its own terminal. Kafka is off in this mode (no broker), everything else works.
 
-**Shortcut**: `./scripts/start-local.sh` does steps 2–3 for you (in order, waiting for health and for the services to find each other), `./scripts/demo.sh` creates and checks sample data, and `./scripts/stop-local.sh` stops everything. The manual steps below show what the script does.
+**Shortcut**: `./scripts/start-local.sh` does steps 2–3 for you (in order, waiting for health and for the services to find each other), `./scripts/seed-data.sh` creates sample data you can explore, `./scripts/demo.sh` checks every feature, and `./scripts/stop-local.sh` stops everything. The manual steps below show what the script does.
 
 **1. Build all five projects** (once, and after code changes; stop running services first on Windows, see [Troubleshooting](#troubleshooting)):
 
