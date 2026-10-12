@@ -91,7 +91,7 @@ Open six Git Bash windows in the project folder (set `JAVA_HOME` in each) and st
 java -jar zipkin-server-3.6.1-exec.jar                                  # optional
 java -jar config-server/target/config-server-0.0.1-SNAPSHOT.jar         # wait for: Started ConfigServerApplication
 java -jar discovery-server/target/discovery-server-0.0.1-SNAPSHOT.jar   # wait for: Started DiscoveryServerApplication
-java -jar user-service/target/user-service-0.0.1-SNAPSHOT.jar           # wait for: Started FirstProjectApplication
+java -jar user-service/target/user-service-0.0.1-SNAPSHOT.jar           # wait for: Started UserServiceApplication
 java -jar comment-service/target/comment-service-0.0.1-SNAPSHOT.jar     # wait for: Started CommentServiceApplication
 java -jar api-gateway/target/api-gateway-0.0.1-SNAPSHOT.jar             # wait for: Started ApiGatewayApplication
 ```

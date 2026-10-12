@@ -35,7 +35,10 @@ pass "Eureka lists API-GATEWAY, COMMENT-SERVICE, USER-SERVICE"
 # 2. Gateway -> user-service, login against PostgreSQL (Flyway seed + BCrypt)
 gateway_login() { VIGO=$(login vigo) && [[ -n "$VIGO" && "$VIGO" != null ]]; }
 retry 40 gateway_login || fail "login through the gateway"
-ADMIN=$(login rambo)
+# Retried too: right after warm-up the gateway can still answer one request with its 503 fallback,
+# and a bare ADMIN=$(login rambo) under `set -e` would end the script with curl's exit code 22.
+admin_login() { ADMIN=$(login rambo) && [[ -n "$ADMIN" && "$ADMIN" != null ]]; }
+retry 10 admin_login || fail "admin login through the gateway"
 pass "login through the gateway (user-service on PostgreSQL)"
 
 # 3. Gateway -> comment-service -> (Feign) user-service: comment on Diga's post 5

@@ -1,4 +1,4 @@
-# Spring Boot Microservices — Interview Prep Project
+# Spring Boot Microservices: users, posts and comments
 
 [![CI](https://github.com/GauravPawar-Git/Spring-boot-microservice/actions/workflows/ci.yml/badge.svg)](https://github.com/GauravPawar-Git/Spring-boot-microservice/actions/workflows/ci.yml)
 

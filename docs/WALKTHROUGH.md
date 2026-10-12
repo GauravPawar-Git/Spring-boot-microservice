@@ -181,7 +181,7 @@ All numbers come from real runs: local runs, or GitHub Actions jobs (the CI anno
 - The Phase 1 in-memory `UserResources` + `UserDAO` were removed; the JPA version replaced them long ago.
 - The JPA entities (`User`, `Post`, `Role`) moved from `bean` to `entity`.
 - The leftover `HELP.md` was deleted.
-- The Java package name `com.practice.first_project` was kept: renaming it would touch every file for no functional gain.
+- The Java package name `com.practice.first_project` was kept at first. It was later renamed to `com.practice.users` (main class `UserServiceApplication`) to match the other services, and the leftover `HelloWorldController`, `HelloWorld` and `FunctionPractice` practice classes were deleted.
 
 **api-gateway completed**: it was the thinnest module, with one class, no tests, and no answer for a dead service (the Phase 5 gap: a plain 500 after 2 s).
 - Each route now has a `CircuitBreaker` filter with `fallbackUri=forward:/fallback/<service>`. `FallbackController` answers `503 "<service> is unavailable"` in the same JSON shape as the services.

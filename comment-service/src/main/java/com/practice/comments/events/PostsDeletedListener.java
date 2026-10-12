@@ -16,7 +16,7 @@ import tools.jackson.databind.json.JsonMapper;
  * user-service's database, so no foreign key / cascade can delete our comments. This listener is the
  * "cascade" across services.
  *
- * Where the message comes from (user-service module, package com.practice.first_project):
+ * Where the message comes from (user-service module, package com.practice.users):
  *   UserJPAResources.deleteUserById()  (DELETE /jpa/users/{id}, ADMIN only)
  *     -> UserService.deleteUser()           publishes PostsDeletedEvent inside user-service
  *     -> KafkaEventPublisher.onPostsDeleted()   after commit: kafkaTemplate.send("posts-deleted", json)
